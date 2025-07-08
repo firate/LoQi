@@ -10,4 +10,10 @@
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.5"/>
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\LoQi.Application\LoQi.Application.csproj" />
+      <ProjectReference Include="..\LoQi.Infrastructure\LoQi.Infrastructure.csproj" />
+      <ProjectReference Include="..\LoQi.Persistence\LoQi.Persistence.csproj" />
+    </ItemGroup>
+
 </Project>

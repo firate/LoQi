@@ -6,4 +6,14 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\LoQi.Application\LoQi.Application.csproj" />
+      <ProjectReference Include="..\LoQi.Domain\LoQi.Domain.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Dapper" Version="2.1.66" />
+      <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.6" />
+    </ItemGroup>
+
 </Project>
