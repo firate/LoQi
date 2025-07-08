@@ -1,0 +1,6 @@
+@LoQi.API_HostAddress = http://localhost:5208
+
+GET {{LoQi.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
