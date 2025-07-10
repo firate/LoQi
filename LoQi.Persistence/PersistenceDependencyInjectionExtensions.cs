@@ -1,4 +1,6 @@
 using LoQi.Application.Persistence;
+using LoQi.Application.Repository;
+using LoQi.Persistence.Repository;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -11,7 +13,11 @@ public static class PersistenceDependencyInjectionExtensions
     {
         services.AddScoped<IDbConnectionFactory, SqliteConnectionFactory>();
         services.AddScoped<DataContext>();
+        services.AddScoped<ILogRepository, LogRepository>();
+        
+        services.AddScoped<Seeder>();
 
         return services;
     }
 }
+

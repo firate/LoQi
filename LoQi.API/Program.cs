@@ -1,35 +1,54 @@
+using LoQi.Application;
 using LoQi.Persistence;
+using Scalar.AspNetCore;
 
-namespace LoQi.API;
 
-public class Program
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddPersistenceServices(builder.Configuration);
+builder.Services.AddApplicationServices(builder.Configuration);
+
+
+// Add services to the container.
+//builder.Services.AddAuthorization();
+
+builder.Services.AddControllers();
+
+// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+builder.Services.AddOpenApi();
+
+// TODO: any kullanımı kısıtlanmalı.
+builder.Services.AddCors(options =>
 {
-    public static void Main(string[] args)
-    {
-        var builder = WebApplication.CreateBuilder(args);
-
-        builder.Services.AddPersistenceServices(builder.Configuration);
-
-        // Add services to the container.
-        //builder.Services.AddAuthorization();
-
-        // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-        builder.Services.AddOpenApi();
-
-        var app = builder.Build();
-
-        // Configure the HTTP request pipeline.
-        if (app.Environment.IsDevelopment())
+    options.AddPolicy("AllowAll",
+        policy =>
         {
-            app.MapOpenApi();
-        }
+            policy.AllowAnyOrigin()
+                .AllowAnyMethod()
+                .AllowAnyHeader();
+        });
+});
 
-        app.UseHttpsRedirection();
+var app = builder.Build();
 
-        //app.UseAuthorization();
+// Configure the HTTP request pipeline.
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    app.MapScalarApiReference();
 
-        
-
-        app.Run();
-    }
+    // await using var scope = app.Services.CreateAsyncScope();
+    // var seeder = scope.ServiceProvider.GetRequiredService<Seeder>();
+    // await seeder.CreateLogTableAsync();
 }
+
+app.UseHttpsRedirection();
+
+
+app.UseCors("AllowAll");
+
+//app.UseAuthorization();
+
+app.MapControllers();
+
+await app.RunAsync();
