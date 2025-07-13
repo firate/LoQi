@@ -6,9 +6,4 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
-    <ItemGroup>
-      <ProjectReference Include="..\LoQi.Application\LoQi.Application.csproj" />
-      <ProjectReference Include="..\LoQi.Domain\LoQi.Domain.csproj" />
-    </ItemGroup>
-
 </Project>

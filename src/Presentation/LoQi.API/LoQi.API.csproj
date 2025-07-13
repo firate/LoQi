@@ -13,9 +13,10 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\LoQi.Application\LoQi.Application.csproj" />
-      <ProjectReference Include="..\LoQi.Infrastructure\LoQi.Infrastructure.csproj" />
-      <ProjectReference Include="..\LoQi.Persistence\LoQi.Persistence.csproj" />
+      <ProjectReference Include="..\..\Core\LoQi.Application\LoQi.Application.csproj" />
+      <ProjectReference Include="..\..\Core\LoQi.Domain\LoQi.Domain.csproj" />
+      <ProjectReference Include="..\..\Infrastructure\LoQi.Infrastructure\LoQi.Infrastructure.csproj" />
+      <ProjectReference Include="..\..\Persistence\LoQi.Persistence\LoQi.Persistence.csproj" />
     </ItemGroup>
 
 </Project>

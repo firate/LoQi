@@ -20,3 +20,4 @@ public class LogEntry
     }
     public long TimestampUtc => Timestamp.ToUnixTimeSeconds();
 }
+

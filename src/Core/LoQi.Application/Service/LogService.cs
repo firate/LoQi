@@ -7,10 +7,12 @@ namespace LoQi.Application.Service;
 public class LogService: ILogService
 {
     private readonly ILogRepository _logRepository;
+    private readonly INotificationService _notificationService;
 
-    public LogService(ILogRepository logRepository)
+    public LogService(ILogRepository logRepository, INotificationService notificationService)
     {
         _logRepository = logRepository;
+        _notificationService = notificationService;
     }
 
     public async Task<bool> AddLogAsync(AddLogDto dto)
@@ -37,11 +39,11 @@ public class LogService: ILogService
 
         var isSaved = await _logRepository.AddAsync(log);
 
-        if (isSaved)
-        {
-            return true;
-        }
+        if (!isSaved) return false;
         
-        return false;
+        await _notificationService.SendNotification(log);
+            
+        return true;
+
     }
 }

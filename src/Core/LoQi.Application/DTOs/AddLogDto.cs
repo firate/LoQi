@@ -1,6 +1,6 @@
 namespace LoQi.Application.DTOs;
 
-public class AddLogDto
+public record AddLogDto
 {
     public string Message { get; set; }
     public int Level { get; set; }
