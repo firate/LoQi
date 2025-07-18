@@ -1,0 +1,69 @@
+services:
+  # 🗄️ Database Initialization
+  db-init:
+    image: alpine:latest
+    volumes:
+      - loqi_data:/data
+      - ./scripts/schema-creation.sql:/scripts/schema-creation.sql
+    command: |
+      sh -c "
+        echo '📦 Installing SQLite...'
+        apk add --no-cache sqlite
+      
+        echo '🔍 Checking database...'
+        if [ ! -s /data/loqi.db ]; then
+          echo '🚀 Creating database with schema...'
+          sqlite3 /data/loqi.db < /scripts/schema-creation.sql
+          echo '✅ Database created successfully!'
+      
+          # Verify tables
+          echo '🔍 Verifying tables:'
+          sqlite3 /data/loqi.db '.tables'
+      
+          # Check FTS5 table
+          echo '🔍 Checking FTS5 support:'
+          sqlite3 /data/loqi.db 'SELECT name FROM sqlite_master WHERE type=\"table\" AND name LIKE \"%fts%\";'
+      
+        else
+          echo '✅ Database already exists'
+          sqlite3 /data/loqi.db '.tables'
+        fi
+      
+        echo '🎉 Database initialization completed!'
+      "
+    restart: "no"
+
+  # 🚀 Ana Uygulama
+  loqi:
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    ports:
+      - "5003:8080"
+      - "10080:10080/udp"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/loqi.db
+      - Logging__LogLevel__Default=Information
+      - UdpListener__Port=10080
+    volumes:
+      - loqi_data:/app/data
+      - loqi_logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  loqi_data:
+    driver: local
+  loqi_logs:
+    driver: local

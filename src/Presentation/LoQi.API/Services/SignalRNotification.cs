@@ -1,5 +1,5 @@
 using LoQi.API.Hubs;
-using LoQi.Application.Service;
+using LoQi.Application.Services;
 using Microsoft.AspNetCore.SignalR;
 
 namespace LoQi.API.Services;
