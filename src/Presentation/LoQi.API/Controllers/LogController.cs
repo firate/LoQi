@@ -15,7 +15,6 @@ public class LogController : BaseApiController
         _logService = logService;
     }
 
-    // TODO: should be deleted
     [HttpPost]
     public async Task<IActionResult> Search([FromBody] SearchLogDto dto)
     {
