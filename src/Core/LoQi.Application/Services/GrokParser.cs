@@ -1,12 +1,11 @@
 using System.Text.RegularExpressions;
 
-namespace LoQi.Application.Service;
-
+namespace LoQi.Application.Services;
 
 public class GrokParser
 {
     private readonly Dictionary<string, string> _patterns;
-    
+
     public GrokParser()
     {
         _patterns = new Dictionary<string, string>
@@ -20,22 +19,26 @@ public class GrokParser
             ["GREEDYDATA"] = @".*"
         };
     }
-    
+
     public Dictionary<string, string> Parse(string grokPattern, string logLine)
     {
         // Convert grok to regex: %{IP:client_ip} → (?<client_ip>\d+\.\d+\.\d+\.\d+)
         var regex = ConvertGrokToRegex(grokPattern);
         var match = Regex.Match(logLine, regex);
-        
+
         var result = new Dictionary<string, string>();
-        foreach (string groupName in match.Groups.Keys)
+        foreach (var groupName in match.Groups.Keys)
         {
-            if (groupName != "0") // Skip full match
+            if (groupName != "0")
+            {
+                // Skip full match
                 result[groupName] = match.Groups[groupName].Value;
+            }
         }
+
         return result;
     }
-    
+
     private string ConvertGrokToRegex(string grokPattern)
     {
         // %{IP:client_ip} → (?<client_ip>\d+\.\d+\.\d+\.\d+)

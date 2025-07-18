@@ -1,4 +1,4 @@
-namespace LoQi.Application.Service;
+namespace LoQi.Application.Services;
 
 public interface INotificationService
 {

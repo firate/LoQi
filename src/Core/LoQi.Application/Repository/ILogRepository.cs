@@ -8,5 +8,6 @@ public interface ILogRepository
     Task<List<LogEntry>?> SearchLogs(string searchText, DateTimeOffset beginDate, DateTimeOffset endDate,
         LogLevel logLevel);
     Task<LogEntry?> GetLogByIdAsync(long id);
+    Task<LogEntry?> GetLogByUniqueAsync(string uniqueId);
     Task<bool> AddAsync(LogEntry logEntry);
 }

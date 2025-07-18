@@ -51,6 +51,38 @@ public class LogRepository : ILogRepository
         return logEntry;
     }
 
+    public async Task<LogEntry?> GetLogByUniqueAsync(string uniqueId)
+    {
+        var sqlQuery = "select * from logs where unique_id = @uniqueId";
+
+        var connection = _context.CreateConnection();
+
+        var logEntry = (await connection.QueryAsync<LogEntry>(sqlQuery, new { unique_id = uniqueId })).FirstOrDefault();
+
+        return logEntry;
+    }
+    
+    public async Task<object?> GetLogByUniqueAsync2(string uniqueId)
+    {
+        var sqlQuery = "select * from logs where unique_id = @uniqueId";
+
+        var connection = _context.CreateConnection();
+
+        var logEntry = (await connection.QueryAsync<LogEntry>(sqlQuery, new { unique_id = uniqueId }))
+            .Select(x=> new
+            {
+                Id = x.Id,
+                UniqueId = x.UniqueId,
+                Level = x.LevelId,
+                Message = x.Message,
+                TimeStamp = x.TimestampUtc,
+                
+            })
+            .FirstOrDefault();
+
+        return logEntry;
+    }
+
     public async Task<bool> AddAsync(LogEntry logEntry)
     {
         var uniqueId = logEntry.UniqueId;
@@ -61,10 +93,10 @@ public class LogRepository : ILogRepository
         var message = logEntry.Message;
         var source = logEntry.Source;
 
-        var sqlInsert = @"insert into logs 
-                        (unique_id, correlation_id, timestamp,offset_minutes, level, message, source )
+        var sqlInsert = """
+                        insert into logs (unique_id, correlation_id, timestamp,offset_minutes, level, message, source )
                         values(@uniqueId,@correlationId, @timestamp, @offsetminutes, @level, @message,@source )
-                        ";
+                        """;
 
         var connection = _context.CreateConnection();
 

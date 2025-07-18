@@ -2,7 +2,7 @@ using LoQi.Application.DTOs;
 using LoQi.Application.Repository;
 using LoQi.Domain;
 
-namespace LoQi.Application.Service;
+namespace LoQi.Application.Services;
 
 public class LogService: ILogService
 {
@@ -23,9 +23,7 @@ public class LogService: ILogService
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(dto?.Source))
-        {
-        }
+        var source = string.IsNullOrWhiteSpace(dto?.Source) ? "Unknown" : dto.Source;
 
         var log = new LogEntry()
         {
@@ -45,5 +43,21 @@ public class LogService: ILogService
             
         return true;
 
+    }
+
+    public async Task<object> SearchLogs(SearchLogDto dto)
+    {
+        // doğrudan unique_id'den sorgula
+        
+        // pattern'leri al, dönüştür.
+        // tarihleri al
+
+       
+
+
+        var x = _logRepository.GetLogByUniqueAsync(dto.UniqueId);
+
+
+        return null;
     }
 }
