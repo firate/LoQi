@@ -253,7 +253,7 @@ public class UdpLogProcessingService : BackgroundService
         if (lowerMessage.Contains("debug") || lowerMessage.Contains("trace"))
             return 1;
         if (lowerMessage.Contains("verbose"))
-            return 1;
+            return 0;
 
         return 2; // Info default
     }
