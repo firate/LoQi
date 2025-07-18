@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 
 using LoQi.API.Controllers.Base;
 using LoQi.Application.DTOs;
-using LoQi.Application.Service;
+using LoQi.Application.Services;
 
 namespace LoQi.API.Controllers;
 
@@ -17,15 +17,9 @@ public class LogController : BaseApiController
 
     // TODO: should be deleted
     [HttpPost]
-    public async Task<IActionResult> AddLogAsync([FromBody] AddLogDto dto)
+    public async Task<IActionResult> Search([FromBody] SearchLogDto dto)
     {
-        var isRecorded = await _logService.AddLogAsync(dto);
-
-        if (isRecorded)
-        {
-            return Ok();
-        }
-
+       
         return BadRequest();
     }
 }

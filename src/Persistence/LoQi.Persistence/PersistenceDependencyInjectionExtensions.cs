@@ -14,8 +14,6 @@ public static class PersistenceDependencyInjectionExtensions
         services.AddScoped<IDbConnectionFactory, SqliteConnectionFactory>();
         services.AddScoped<DataContext>();
         services.AddScoped<ILogRepository, LogRepository>();
-        
-        services.AddScoped<Seeder>();
 
         return services;
     }
