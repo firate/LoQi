@@ -4,7 +4,7 @@ using LoQi.Domain;
 
 namespace LoQi.Application.Services;
 
-public class LogService: ILogService
+public class LogService : ILogService
 {
     private readonly ILogRepository _logRepository;
     private readonly INotificationService _notificationService;
@@ -22,14 +22,12 @@ public class LogService: ILogService
             // TODO: I'm going to use ErrorOr library for this type of situation
             return false;
         }
-
-        var source = string.IsNullOrWhiteSpace(dto?.Source) ? "Unknown" : dto.Source;
-
+        
         var log = new LogEntry()
         {
             UniqueId = Guid.NewGuid(),
             Message = dto?.Message!,
-            Source = dto?.Source!,
+            Source = string.IsNullOrWhiteSpace(dto?.Source) ? "Unknown" : dto.Source,
             LevelId = dto.Level,
             Timestamp = DateTimeOffset.Now,
             OffsetMinutes = DateTimeOffset.Now.TotalOffsetMinutes
@@ -38,26 +36,51 @@ public class LogService: ILogService
         var isSaved = await _logRepository.AddAsync(log);
 
         if (!isSaved) return false;
-        
-        await _notificationService.SendNotification(log);
-            
-        return true;
 
+        await _notificationService.SendNotification(log);
+
+        return true;
     }
 
-    public async Task<object> SearchLogs(SearchLogDto dto)
+    public async Task<List<LogDto>> SearchLogs(LogSearchDto dto)
     {
+        // UniqueId dolu ise tek kayıt olarak,
         // doğrudan unique_id'den sorgula
-        
+
         // pattern'leri al, dönüştür.
         // tarihleri al
 
-       
+        if (!string.IsNullOrWhiteSpace(dto.UniqueId))
+        {
+            var singleLogRecord = await _logRepository.GetLogByUniqueAsync(dto.UniqueId);
+
+            if (singleLogRecord is null)
+            {
+                return [];
+            }
+
+            return new List<LogDto>()
+            {
+                new LogDto()
+                {
+                    CorrelationId = singleLogRecord?.CorrelationId.ToString(),
+                    LevelId = singleLogRecord?.LevelId ?? 2,
+                    UniqueId = singleLogRecord?.UniqueId != Guid.Empty
+                        ? singleLogRecord?.UniqueId.ToString()
+                        : string.Empty,
+                    Message = singleLogRecord?.Message ?? string.Empty,
+                    Source = singleLogRecord?.Source ?? string.Empty,
+                    
+                }
+            };
+        }
 
 
-        var x = _logRepository.GetLogByUniqueAsync(dto.UniqueId);
+        var x = await _logRepository.GetLogByUniqueAsync(dto.UniqueId);
 
 
         return null;
     }
+    
+
 }

@@ -1,13 +1,37 @@
+using LoQi.Application.Common;
+using LoQi.Application.DTOs;
 using LoQi.Domain;
-using LoQi.Domain.Enums;
 
 namespace LoQi.Application.Repository;
 
 public interface ILogRepository
 {
-    Task<List<LogEntry>?> SearchLogs(string searchText, DateTimeOffset beginDate, DateTimeOffset endDate,
-        LogLevel logLevel);
-    Task<LogEntry?> GetLogByIdAsync(long id);
+ 
+
+
     Task<LogEntry?> GetLogByUniqueAsync(string uniqueId);
     Task<bool> AddAsync(LogEntry logEntry);
+
+
+    // Task<LogSearchResult> SearchLogsAsync(
+    //     string searchText,
+    //     DateTimeOffset startDate,
+    //     DateTimeOffset endDate,
+    //     int levelId,
+    //     string? source,
+    //     string? correlationId,
+    //     int page,
+    //     string orderBy,
+    //     int pageSize = 50,
+    //     bool descending = true
+    // );
+
+    Task<PagedResult<LogEntry>> SearchLogsAsync(string searchText, DateTimeOffset startDate, DateTimeOffset endDate,
+        int levelId, string? source,
+        string? correlationId, int page, string orderBy, int pageSize = 50, bool descending = true);
+    
+    // Task<PagedResult<LogDto>> SearchLogsAsync(string searchText, DateTimeOffset startDate, DateTimeOffset endDate,
+    //     int levelId, string? source,
+    //     string? correlationId, int page, string orderBy, int pageSize = 50, bool descending = true);
+
 }

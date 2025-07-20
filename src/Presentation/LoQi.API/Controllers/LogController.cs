@@ -16,7 +16,7 @@ public class LogController : BaseApiController
     }
 
     [HttpPost]
-    public async Task<IActionResult> Search([FromBody] SearchLogDto dto)
+    public async Task<IActionResult> Search([FromBody] LogSearchDto dto)
     {
        
         return BadRequest();
