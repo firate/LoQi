@@ -1,0 +1,21 @@
+<svg width="1200" height="500" viewBox="0 0 120 50" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <filter id="a" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation=".27"/>
+        </filter>
+    </defs>
+    <rect x="15" y="17" width="10" height="3" fill="#28a745" rx="1" filter="url(#a)"/>
+    <rect x="15" y="23" width="12" height="3" fill="#ffc107" rx="1" filter="url(#a)"/>
+    <rect x="15" y="29" width="14" height="3" fill="#dc3545" rx="1" filter="url(#a)"/>
+    <circle cx="35" cy="22" r="6" fill="none" stroke="#fd7e14" stroke-width="2"/>
+    <circle cx="35" cy="22" r="2" fill="#fd7e14" opacity=".2"/>
+    <path stroke="#fd7e14" stroke-width="2" d="m40 27 4 4"/>
+    <text x="48" y="30" font-family="Inter, sans-serif" font-size="18" font-weight="400" fill="#fff">
+        Loq
+    </text>
+    <text x="78" y="30" font-family="Inter, sans-serif" font-size="18" font-weight="500" fill="#ea4334">
+        i
+    </text>
+</svg>
+
+
