@@ -62,7 +62,8 @@ const Page = () => {
             isMounted = false;
             connection?.stop();
         };
-    }, [connection]); // maxLogs'u dependency'den çıkardık
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [connection]); // maxLogs kasıtlı olarak eklenmedi - ref kullanıyoruz
 
     const getLevelColor = (level: number) => {
         switch (level) {

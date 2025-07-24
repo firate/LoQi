@@ -31,19 +31,6 @@ export interface LogEntry {
     timestamp: string;
 }
 
-export interface PagedResult<T> {
-    endIndex: number,
-    hasNextPage: boolean,
-    hasPreviousPage: boolean,
-    isFirstPage: boolean,
-    isLastPage: boolean,
-    items: Array<T>,
-    page: number,
-    pageSize: number,
-    startIndex: number,
-    totalCount: number,
-    totalPages: number
-}
 
 export interface ApiResponse<T> {
     success: boolean;
@@ -53,7 +40,7 @@ export interface ApiResponse<T> {
     errors?: Array<{
         field: string;
         message: string;
-        attemptedValue?: any;
+        attemptedValue?: unknown;
     }>;
     timestamp: string;
 }
