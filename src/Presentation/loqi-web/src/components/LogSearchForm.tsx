@@ -1,5 +1,6 @@
-import {useState} from 'react';
-import {LogSearchDto} from '../types/log';
+import {useState, useEffect} from 'react';
+import {LogSearchDto, LogMetadata} from '../types/log';
+import {logService} from '../services/LogService';
 
 interface LogSearchFormProps {
     onSearch: (params: LogSearchDto) => void;
@@ -19,14 +20,30 @@ export default function LogSearchForm({onSearch, loading}: LogSearchFormProps) {
         descending: true
     });
 
-    const logLevels = [
-        {value: 0, label: 'Verbose', color: 'text-gray-600'},
-        {value: 1, label: 'Debug', color: 'text-blue-600'},
-        {value: 2, label: 'Information', color: 'text-green-600'},
-        {value: 3, label: 'Warning', color: 'text-yellow-600'},
-        {value: 4, label: 'Error', color: 'text-red-600'},
-        {value: 5, label: 'Fatal', color: 'text-red-800'}
-    ];
+    const [metadata, setMetadata] = useState<LogMetadata | null>(null);
+    const [metadataLoading, setMetadataLoading] = useState(true);
+    const [metadataError, setMetadataError] = useState<string | null>(null);
+
+    // Fetch metadata on component mount
+    useEffect(() => {
+        const fetchMetadata = async () => {
+            try {
+                setMetadataLoading(true);
+                const response = await logService.getLogMetadata();
+                if (response && response.success) {
+                    setMetadata(response.data);
+                } else {
+                    setMetadataError(response?.error || 'Failed to load metadata');
+                }
+            } catch (error) {
+                setMetadataError(error instanceof Error ? error.message : 'Failed to load metadata');
+            } finally {
+                setMetadataLoading(false);
+            }
+        };
+
+        fetchMetadata();
+    }, []);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -75,6 +92,38 @@ export default function LogSearchForm({onSearch, loading}: LogSearchFormProps) {
             descending: true
         });
     };
+
+    // Show loading state for metadata
+    if (metadataLoading) {
+        return (
+            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                <div className="flex items-center justify-center py-8">
+                    <svg className="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span className="ml-2 text-gray-600">Loading search options...</span>
+                </div>
+            </div>
+        );
+    }
+
+    // Show error state for metadata
+    if (metadataError || !metadata) {
+        return (
+            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                <div className="text-center py-8">
+                    <div className="text-red-600 mb-2">
+                        <svg className="mx-auto h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01"/>
+                        </svg>
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Error Loading Search Options</h3>
+                    <p className="text-gray-600">{metadataError}</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
@@ -161,7 +210,7 @@ export default function LogSearchForm({onSearch, loading}: LogSearchFormProps) {
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                         >
                             <option value="">All Levels</option>
-                            {logLevels.map(level => (
+                            {metadata.logLevels.map(level => (
                                 <option key={level.value} value={level.value}>
                                     {level.label}
                                 </option>
@@ -193,10 +242,11 @@ export default function LogSearchForm({onSearch, loading}: LogSearchFormProps) {
                             onChange={(e) => setFormData(prev => ({...prev, pageSize: parseInt(e.target.value)}))}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                         >
-                            <option value={10}>10 per page</option>
-                            <option value={25}>25 per page</option>
-                            <option value={50}>50 per page</option>
-                            <option value={100}>100 per page</option>
+                            {metadata.pageSizeOptions.map(option => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
                         </select>
                     </div>
                     <div>
@@ -208,9 +258,11 @@ export default function LogSearchForm({onSearch, loading}: LogSearchFormProps) {
                             onChange={(e) => setFormData(prev => ({...prev, orderBy: e.target.value}))}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                         >
-                            <option value="timestamp">Timestamp</option>
-                            <option value="level">Level</option>
-                            <option value="source">Source</option>
+                            {metadata.orderByOptions.map(option => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
                         </select>
                     </div>
                     <div>
@@ -222,8 +274,11 @@ export default function LogSearchForm({onSearch, loading}: LogSearchFormProps) {
                             onChange={(e) => setFormData(prev => ({...prev, descending: e.target.value === 'desc'}))}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                         >
-                            <option value="desc">Newest First</option>
-                            <option value="asc">Oldest First</option>
+                            {metadata.sortOrderOptions.map(option => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
                         </select>
                     </div>
                 </div>

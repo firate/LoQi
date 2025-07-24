@@ -54,16 +54,38 @@ public record ApiResponse<T>
     public static ApiResponse<T> Fail(Exception exception)
         => new(false, default, exception.Message, null, null);
 
-    // 🎯 Validation error için özel method
-    public static ApiResponse<T> ValidationError(string message, List<ApiError> validationErrors)
+    // 🎯 HTTP Status specific methods
+    public static ApiResponse<T> BadRequest(string? message = null)
+        => new(false, default, message ?? "Bad request", null, null);
+
+    public static ApiResponse<T> BadRequest(string message, List<ApiError> validationErrors)
         => new(false, default, message, validationErrors, null);
 
-    // 🎯 Not found için özel method
     public static ApiResponse<T> NotFound(string? message = null)
         => new(false, default, message ?? "Resource not found", null, null);
 
-    // 🎯 Unauthorized için özel method
     public static ApiResponse<T> Unauthorized(string? message = null)
         => new(false, default, message ?? "Unauthorized access", null, null);
-    
+
+    // 🎯 Validation error için özel method (BadRequest'in alias'ı gibi)
+    public static ApiResponse<T> ValidationError(string message, List<ApiError> validationErrors)
+        => new(false, default, message, validationErrors, null);
 }
+
+
+
+public record LogMetadataDto
+{
+    public List<LogLevelDto> LogLevels { get; init; } = [];
+    public List<OrderByOptionDto> OrderByOptions { get; init; } = [];
+    public List<PageSizeOptionDto> PageSizeOptions { get; init; } = [];
+    public List<SortOrderOptionDto> SortOrderOptions { get; init; } = [];
+}
+
+public record LogLevelDto(int Value, string Label, string Color);
+
+public record OrderByOptionDto(string Value, string Label);
+
+public record PageSizeOptionDto(int Value, string Label);
+
+public record SortOrderOptionDto(string Value, string Label, bool IsDescending);

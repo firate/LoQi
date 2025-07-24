@@ -51,7 +51,7 @@ public class LogService : ILogService
             return PaginatedData<LogDto>.Empty();
         }
 
-        // UniqueId dolu ise tek kayıt olarak arama
+        // UniqueId dolu ise tek kayıt olarak arama - FULL MESSAGE ile
         if (!string.IsNullOrWhiteSpace(dto.UniqueId))
         {
             var singleLogRecord = await _logRepository.GetLogByUniqueAsync(dto.UniqueId);
@@ -67,7 +67,7 @@ public class LogService : ILogService
                     CorrelationId = singleLogRecord.CorrelationId?.ToString(),
                     LevelId = singleLogRecord.LevelId,
                     UniqueId = singleLogRecord.UniqueId.ToString(),
-                    Message = singleLogRecord.Message,
+                    Message = singleLogRecord.Message, // Full message from GetLogByUniqueAsync
                     Source = singleLogRecord.Source,
                     Date = singleLogRecord.Timestamp
                 }
@@ -103,7 +103,7 @@ public class LogService : ILogService
             CorrelationId = x?.CorrelationId?.ToString(),
             Date = x.Timestamp,
             LevelId = x.LevelId,
-            Message = x.Message,
+            Message = x.Message, // Truncated message from SearchLogsAsync
             Source = x.Source,
             UniqueId = x.UniqueId.ToString()
         }).ToList();
@@ -112,5 +112,4 @@ public class LogService : ILogService
             mappedLogs ?? [],
             pagedResult?.PaginationInfo ?? new PaginationInfo(1,10, 0));
     }
-    
 }

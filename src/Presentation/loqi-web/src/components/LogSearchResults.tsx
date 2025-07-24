@@ -1,4 +1,5 @@
 import {ApiResponse, LogDto} from '../types/log';
+import {useRouter} from 'next/navigation';
 
 interface LogSearchResultsProps {
     results: ApiResponse<LogDto[]> | null;
@@ -8,6 +9,8 @@ interface LogSearchResultsProps {
 }
 
 export default function LogSearchResults({results, loading, error, onPageChange}: LogSearchResultsProps) {
+    const router = useRouter();
+
     const getLevelColor = (level: number) => {
         switch (level) {
             case 0:
@@ -41,6 +44,10 @@ export default function LogSearchResults({results, loading, error, onPageChange}
             minute: '2-digit',
             second: '2-digit'
         });
+    };
+
+    const handleViewDetails = (uniqueId: string) => {
+        router.push(`/?logId=${uniqueId}`);
     };
 
     if (loading) {
@@ -150,6 +157,14 @@ export default function LogSearchResults({results, loading, error, onPageChange}
                                         Unique ID: {log.uniqueId}
                                     </p>
                                 )}
+                            </div>
+                            <div className="ml-4 flex-shrink-0">
+                                <button
+                                    onClick={() => handleViewDetails(log.uniqueId)}
+                                    className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                                >
+                                    View Details
+                                </button>
                             </div>
                         </div>
                     </div>

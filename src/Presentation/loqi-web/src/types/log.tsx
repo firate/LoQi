@@ -21,8 +21,6 @@ export interface LogSearchDto {
     descending: boolean;
 }
 
-
-
 export interface LogEntry {
     id: number;
     message: string;
@@ -30,7 +28,6 @@ export interface LogEntry {
     source: string;
     timestamp: string;
 }
-
 
 export interface ApiResponse<T> {
     success: boolean;
@@ -58,3 +55,32 @@ export interface PaginationInfo {
     totalPages: number
 }
 
+// 🎯 Log Metadata Types - API'den gelen statik bilgiler
+export interface LogMetadata {
+    logLevels: LogLevelOption[];
+    orderByOptions: OrderByOption[];
+    pageSizeOptions: PageSizeOption[];
+    sortOrderOptions: SortOrderOption[];
+}
+
+export interface LogLevelOption {
+    value: number;
+    label: string;
+    color: string;  // CSS class: "text-red-600"
+}
+
+export interface OrderByOption {
+    value: string;   // "timestamp", "level", "source"
+    label: string;   // "Timestamp", "Level", "Source"
+}
+
+export interface PageSizeOption {
+    value: number;   // 10, 25, 50, 100
+    label: string;   // "10 per page", "25 per page"
+}
+
+export interface SortOrderOption {
+    value: string;      // "desc", "asc"
+    label: string;      // "Newest First", "Oldest First"
+    isDescending: boolean;  // true, false
+}
