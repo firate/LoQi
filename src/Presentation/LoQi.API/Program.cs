@@ -1,9 +1,13 @@
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using LoQi.API.BackgroundServices;
 using LoQi.API.Hubs;
 using LoQi.API.Services;
+using LoQi.API.Validators;
 using LoQi.Application.Services;
 using LoQi.Persistence;
 using Microsoft.AspNetCore.Http.Connections;
+using Microsoft.AspNetCore.Mvc;
 using Scalar.AspNetCore;
 using Serilog;
 
@@ -26,6 +30,47 @@ builder.Host.UseSerilog((context, configuration) =>
 });
 
 builder.Services.AddControllers();
+
+builder.Services.AddFluentValidationAutoValidation().AddFluentValidationClientsideAdapters();
+builder.Services.AddValidatorsFromAssemblyContaining<LogSearchDtoValidator>();
+
+// VALIDATION RESPONSE HANDLER - No exceptions, direct response!
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var correlationId = context.HttpContext.TraceIdentifier ?? Guid.NewGuid().ToString();
+        
+        var errors = context.ModelState
+            .Where(x => x.Value?.Errors.Count > 0)
+            .SelectMany(x => x.Value!.Errors.Select(e => new
+            {
+                field = x.Key,
+                message = e.ErrorMessage,
+                attemptedValue = x.Value.AttemptedValue
+            }))
+            .ToList();
+
+        var response = new
+        {
+            success = false,
+            error = "Validation failed",
+            errorCode = "VALIDATION_ERROR",
+            errors = errors,
+            correlationId = correlationId,
+            timestamp = DateTimeOffset.UtcNow
+        };
+
+        // Log validation errors (informational level)
+        var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+        logger.LogInformation("Validation failed for {RequestPath}: {Errors}", 
+            context.HttpContext.Request.Path, 
+            string.Join(", ", errors.Select(e => $"{e.field}: {e.message}")));
+
+        return new BadRequestObjectResult(response);
+    };
+});
+
 builder.Services.AddSignalR();
 builder.Services.AddHealthChecks();
 

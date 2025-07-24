@@ -1,6 +1,8 @@
+using LoQi.Application.Common;
 using LoQi.Application.DTOs;
 using LoQi.Application.Repository;
 using LoQi.Domain;
+using LoQi.Application.Extensions;
 
 namespace LoQi.Application.Services;
 
@@ -22,7 +24,7 @@ public class LogService : ILogService
             // TODO: I'm going to use ErrorOr library for this type of situation
             return false;
         }
-        
+
         var log = new LogEntry()
         {
             UniqueId = Guid.NewGuid(),
@@ -42,45 +44,73 @@ public class LogService : ILogService
         return true;
     }
 
-    public async Task<List<LogDto>> SearchLogs(LogSearchDto dto)
+    public async Task<PaginatedData<LogDto>> SearchLogsAsync(LogSearchDto dto)
     {
-        // UniqueId dolu ise tek kayıt olarak,
-        // doğrudan unique_id'den sorgula
+        if (dto == null)
+        {
+            return PaginatedData<LogDto>.Empty();
+        }
 
-        // pattern'leri al, dönüştür.
-        // tarihleri al
-
+        // UniqueId dolu ise tek kayıt olarak arama
         if (!string.IsNullOrWhiteSpace(dto.UniqueId))
         {
             var singleLogRecord = await _logRepository.GetLogByUniqueAsync(dto.UniqueId);
-
             if (singleLogRecord is null)
             {
-                return [];
+                return PaginatedData<LogDto>.Empty();
             }
 
-            return new List<LogDto>()
+            var oneItemList = new List<LogDto>()
             {
-                new LogDto()
+                new()
                 {
-                    CorrelationId = singleLogRecord?.CorrelationId.ToString(),
-                    LevelId = singleLogRecord?.LevelId ?? 2,
-                    UniqueId = singleLogRecord?.UniqueId != Guid.Empty
-                        ? singleLogRecord?.UniqueId.ToString()
-                        : string.Empty,
-                    Message = singleLogRecord?.Message ?? string.Empty,
-                    Source = singleLogRecord?.Source ?? string.Empty,
-                    
+                    CorrelationId = singleLogRecord.CorrelationId?.ToString(),
+                    LevelId = singleLogRecord.LevelId,
+                    UniqueId = singleLogRecord.UniqueId.ToString(),
+                    Message = singleLogRecord.Message,
+                    Source = singleLogRecord.Source,
+                    Date = singleLogRecord.Timestamp
                 }
             };
+
+            return PaginatedData<LogDto>.Create(oneItemList, 1, 1, 1);
         }
 
+        // Tarih değerlerini güvenli şekilde parse et
+        var startDate = dto.StartDate.ParseDateTimeOffset() ?? DateTimeOffset.UtcNow.AddDays(-7);
+        var endDate = dto.EndDate.ParseDateTimeOffset() ?? DateTimeOffset.UtcNow;
 
-        var x = await _logRepository.GetLogByUniqueAsync(dto.UniqueId);
+        var pagedResult = await _logRepository.SearchLogsAsync(
+            searchText: !string.IsNullOrWhiteSpace(dto?.SearchText) ? dto?.SearchText : string.Empty,
+            startDate: startDate,
+            endDate: endDate,
+            levelId: dto?.LevelId,
+            source: dto?.Source,
+            correlationId: dto?.CorrelationId,
+            page: dto?.Page ?? 1,
+            orderBy: string.IsNullOrWhiteSpace(dto?.OrderBy) ? "timestamp" : dto?.OrderBy,
+            pageSize: dto?.PageSize ?? 50,
+            descending: dto?.Descending ?? true
+        );
 
+        if (pagedResult?.Items?.Count <= 0)
+        {
+            return PaginatedData<LogDto>.Empty();
+        }
 
-        return null;
+        var mappedLogs = pagedResult?.Items?.Select(x => new LogDto()
+        {
+            CorrelationId = x?.CorrelationId?.ToString(),
+            Date = x.Timestamp,
+            LevelId = x.LevelId,
+            Message = x.Message,
+            Source = x.Source,
+            UniqueId = x.UniqueId.ToString()
+        }).ToList();
+
+        return PaginatedData<LogDto>.Create(
+            mappedLogs ?? [],
+            pagedResult?.PaginationInfo ?? new PaginationInfo(1,10, 0));
     }
     
-
 }
