@@ -20,9 +20,11 @@ public class LogRepository : ILogRepository
 
         var connection = _context.CreateConnection();
 
-        var logEntry = (await connection.QueryAsync<LogEntry>(sqlQuery, new { unique_id = uniqueId })).FirstOrDefault();
+        var rawResult = (await connection.QueryAsync(sqlQuery, new { unique_id = uniqueId })).FirstOrDefault();
 
-        return logEntry;
+        if (rawResult == null) return null;
+
+        return MapSingleLogEntry(rawResult);
     }
 
     public async Task<bool> AddAsync(LogEntry logEntry)
@@ -57,10 +59,15 @@ public class LogRepository : ILogRepository
         return rows > 0;
     }
 
-    public async Task<PagedResult<LogEntry>> SearchLogsAsync(string searchText, DateTimeOffset startDate,
-        DateTimeOffset endDate, int levelId, string? source,
-        string? correlationId, int page, string orderBy, int pageSize = 50, bool descending = true)
+    public async Task<PaginatedData<LogEntry>> SearchLogsAsync(string? searchText, DateTimeOffset startDate,
+        DateTimeOffset endDate, int? levelId, string? source,
+        string? correlationId, int page, string? orderBy, int pageSize = 50, bool descending = true)
     {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 50;
+        if (pageSize > 1000) pageSize = 1000; // Max limit
+        if (string.IsNullOrWhiteSpace(orderBy)) orderBy = "timestamp";
+
         var connection = _context.CreateConnection();
 
         var whereConditions = new List<string>();
@@ -72,8 +79,11 @@ public class LogRepository : ILogRepository
         whereConditions.Add("l.timestamp <= @EndTimestamp");
         parameters.Add("@EndTimestamp", endDate.ToUnixTimeSeconds());
 
-        whereConditions.Add("l.level = @Level");
-        parameters.Add("@Level", levelId);
+        if (levelId >= 0)
+        {
+            whereConditions.Add("l.level = @Level");
+            parameters.Add("@Level", levelId);
+        }
 
         // Source filter
         if (!string.IsNullOrWhiteSpace(source))
@@ -112,42 +122,273 @@ public class LogRepository : ILogRepository
 
         // Execute queries
         var countTask = connection.QuerySingleAsync<int>(countQuery, parameters);
-        var logsTask = connection.QueryAsync<LogEntry>(selectQuery, parameters);
 
-        await Task.WhenAll(countTask, logsTask);
+        var rawDataTask = connection.QueryAsync(selectQuery, parameters);
+
+        await Task.WhenAll(countTask, rawDataTask);
 
         var totalCount = await countTask;
-        var logs = (await logsTask).ToList();
+        var rawLogs = (await rawDataTask).ToList();
 
-        var fixedLogs = MapTimestamps(logs);
-        
+        var logs = MapTimestamps(rawLogs);
+
         if (logs?.Count < 0)
         {
-            return PagedResult<LogEntry>.Empty();
+            return PaginatedData<LogEntry>.Empty();
         }
 
-        return PagedResult<LogEntry>.Create(logs ?? [], totalCount, page, pageSize);
+        return PaginatedData<LogEntry>.Create(logs ?? [], page, pageSize, totalCount);
+    }
+
+    private static LogEntry? MapSingleLogEntry(dynamic rawData)
+    {
+        if (rawData == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            // ✅ Safe UniqueId parsing
+            if (!Guid.TryParse(rawData?.unique_id?.ToString(), out Guid uniqueId))
+            {
+                // Critical field - skip if invalid
+                return null;
+            }
+
+            // ✅ Safe CorrelationId parsing (optional field)
+            Guid? correlationId = null;
+            var correlationIdStr = rawData?.correlation_id?.ToString();
+            if (!string.IsNullOrWhiteSpace(correlationIdStr))
+            {
+                if (Guid.TryParse(correlationIdStr, out Guid parsedCorrelationId))
+                {
+                    correlationId = parsedCorrelationId;
+                }
+            }
+
+            // ✅ Safe numeric parsing
+            if (!long.TryParse(rawData?.timestamp?.ToString(), out long timestamp))
+            {
+                timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(); // Default to now
+            }
+
+            if (!int.TryParse(rawData.offset_minutes?.ToString(), out int offsetMinutes))
+            {
+                offsetMinutes = 0; // Default to UTC
+            }
+
+            if (!int.TryParse(rawData.level?.ToString(), out int level))
+            {
+                level = 2; // Default to Information
+            }
+
+            if (!long.TryParse(rawData.id?.ToString(), out long id))
+            {
+                id = 0; // Will be handled by database
+            }
+
+            // ✅ Safe string handling
+            var message = rawData.message?.ToString() ?? string.Empty;
+            var source = rawData.source?.ToString() ?? "Unknown";
+
+            // ✅ Safe DateTimeOffset creation
+            DateTimeOffset dateTimeOffset;
+            try
+            {
+                dateTimeOffset = DateTimeOffset.FromUnixTimeSeconds(timestamp)
+                    .ToOffset(TimeSpan.FromMinutes(offsetMinutes));
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                // Invalid timestamp or offset - use current time
+                dateTimeOffset = DateTimeOffset.Now;
+            }
+
+            return new LogEntry
+            {
+                Id = id,
+                UniqueId = uniqueId,
+                CorrelationId = correlationId,
+                Message = message,
+                Timestamp = dateTimeOffset,
+                OffsetMinutes = offsetMinutes,
+                Source = source,
+                LevelId = level
+            };
+        }
+        catch (Exception)
+        {
+            // Log the exception if you have logging
+            return null;
+        }
     }
 
 
-    #region MyRegion
+    private static List<LogEntry> MapTimestamps(IEnumerable<dynamic> rawResults)
+    {
+        if (rawResults is null)
+        {
+            return [];
+        }
 
-    private static string BuildOrderByClause(string orderBy, bool descending)
+        var logs = new List<LogEntry>();
+
+        foreach (var rawData in rawResults)
+        {
+            try
+            {
+                //  Safe parsing with TryParse
+                if (!Guid.TryParse(rawData.UniqueId?.ToString(), out Guid uniqueId))
+                {
+                    continue; // Skip invalid entries
+                }
+
+                Guid? correlationId = null;
+                var correlationIdStr = rawData?.CorrelationId?.ToString();
+                if (!string.IsNullOrWhiteSpace(correlationIdStr))
+                {
+                    if (Guid.TryParse(correlationIdStr, out Guid parsedCorrelationId))
+                    {
+                        correlationId = parsedCorrelationId;
+                    }
+                }
+
+                //  Safe numeric conversions with defaults
+                var timestampUtc = TryParseLong(rawData?.TimestampUtc) ?? DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                var offsetMinutes = TryParseInt(rawData?.OffsetMinutes) ?? 0;
+                var id = TryParseLong(rawData?.Id) ?? 0;
+                var levelId = TryParseInt(rawData?.LevelId) ?? 2; // Default to Information
+
+                //  Safe string conversions
+                var message = rawData?.Message?.ToString() ?? string.Empty;
+                var source = rawData?.Source?.ToString() ?? "Unknown";
+
+                //  Safe DateTimeOffset creation with fallback
+                DateTimeOffset timestamp;
+                try
+                {
+                    timestamp = DateTimeOffset.FromUnixTimeSeconds(timestampUtc)
+                        .ToOffset(TimeSpan.FromMinutes(offsetMinutes));
+                }
+                catch (ArgumentOutOfRangeException e)
+                {
+                    // Invalid timestamp/offset - use current time with specified offset
+                    timestamp = DateTimeOffset.Now.ToOffset(TimeSpan.FromMinutes(offsetMinutes));
+                }
+
+                var logEntry = new LogEntry
+                {
+                    Id = id,
+                    UniqueId = uniqueId,
+                    CorrelationId = correlationId,
+                    Message = message,
+                    Timestamp = timestamp,
+                    OffsetMinutes = offsetMinutes,
+                    Source = source,
+                    LevelId = levelId
+                };
+
+                logs.Add(logEntry);
+            }
+            catch (Exception)
+            {
+                // TODO: log this
+                continue;
+            }
+        }
+
+        return logs;
+    }
+
+    private static long? TryParseLong(object? value)
+    {
+        if (value == null) return null;
+        return long.TryParse(value.ToString(), out var result) ? result : null;
+    }
+
+    private static int? TryParseInt(object? value)
+    {
+        if (value == null) return null;
+        return int.TryParse(value.ToString(), out var result) ? result : null;
+    }
+
+    #region Helper Methods (updated for safety)
+
+    private static void BuildWhereConditions(string? searchText, DateTimeOffset startDate, DateTimeOffset endDate,
+        int levelId, string? source, string? correlationId, List<string> whereConditions, DynamicParameters parameters)
+    {
+        // ✅ Safe timestamp conversion
+        try
+        {
+            whereConditions.Add("l.timestamp >= @StartTimestamp");
+            parameters.Add("@StartTimestamp", startDate.ToUnixTimeSeconds());
+
+            whereConditions.Add("l.timestamp <= @EndTimestamp");
+            parameters.Add("@EndTimestamp", endDate.ToUnixTimeSeconds());
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            // Invalid date range - use reasonable defaults
+            whereConditions.Add("l.timestamp >= @StartTimestamp");
+            parameters.Add("@StartTimestamp", DateTimeOffset.UtcNow.AddDays(-30).ToUnixTimeSeconds());
+
+            whereConditions.Add("l.timestamp <= @EndTimestamp");
+            parameters.Add("@EndTimestamp", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+        }
+
+        // ✅ Safe level filter
+        if (levelId >= 0 && levelId <= 5) // Valid log levels
+        {
+            whereConditions.Add("l.level = @Level");
+            parameters.Add("@Level", levelId);
+        }
+
+        // ✅ Safe source filter
+        if (!string.IsNullOrWhiteSpace(source) && source.Length <= 100) // Reasonable length limit
+        {
+            whereConditions.Add("l.source LIKE @Source");
+            parameters.Add("@Source", $"%{source.Trim()}%");
+        }
+
+        // ✅ Safe correlation ID filter
+        if (!string.IsNullOrWhiteSpace(correlationId))
+        {
+            // Validate it's a GUID format
+            if (Guid.TryParse(correlationId, out _))
+            {
+                whereConditions.Add("l.correlation_id = @CorrelationId");
+                parameters.Add("@CorrelationId", correlationId);
+            }
+        }
+
+        // ✅ Safe full text search
+        if (!string.IsNullOrWhiteSpace(searchText) && searchText.Length <= 500) // Prevent extremely long searches
+        {
+            var searchTerm = EscapeFtsSearchTerm(searchText.Trim());
+            parameters.Add("@SearchText", searchTerm);
+        }
+    }
+
+    private static string BuildOrderByClause(string? orderBy, bool descending)
     {
         var direction = descending ? "DESC" : "ASC";
 
-        return orderBy.ToLowerInvariant() switch
+        // ✅ Safe order by with whitelist
+        var safeOrderBy = orderBy?.ToLowerInvariant()?.Trim();
+        return safeOrderBy switch
         {
             "level" => $"l.level {direction}, l.timestamp DESC",
             "source" => $"l.source {direction}, l.timestamp DESC",
-            "timestamp" or _ => $"l.timestamp {direction}"
+            "timestamp" => $"l.timestamp {direction}",
+            _ => "l.timestamp DESC" // Safe default
         };
     }
 
     private static (string selectQuery, string countQuery) BuildFtsQueries(List<string> whereConditions,
         string orderByClause)
     {
-        var baseJoin = @"
+        var baseJoin = $@"
             FROM logs_fts fts
             INNER JOIN logs l ON l.id = fts.rowid";
 
@@ -185,75 +426,38 @@ public class LogRepository : ILogRepository
             : "";
 
         var selectQuery = $@"
-            SELECT id as Id, 
-                   unique_id as UniqueId, 
-                   correlation_id as CorrelationId,
-                   message as Message, 
-                   timestamp as TimestampUtc,
-                   offset_minutes as OffsetMinutes, 
-                   source as Source, 
-                   level as LevelId
-            FROM logs l
-            {whereClause}
-            ORDER BY {orderByClause}
-            LIMIT @PageSize OFFSET @Offset";
+                          SELECT id as Id, unique_id as UniqueId, correlation_id as CorrelationId, message as Message, 
+                              timestamp as TimestampUtc, offset_minutes as OffsetMinutes, source as Source, level as LevelId 
+                          FROM logs l {whereClause} ORDER BY {orderByClause} LIMIT @PageSize OFFSET @Offset
+                          ";
 
-        var countQuery = $@"
-            SELECT COUNT(*)
-            FROM logs l
-            {whereClause}";
+        var countQuery = $@"SELECT COUNT(*) FROM logs l {whereClause}";
 
         return (selectQuery, countQuery);
     }
 
     private static string EscapeFtsSearchTerm(string searchText)
     {
-        // FTS5 özel karakterlerini escape et
-        var escaped = searchText
+        if (string.IsNullOrWhiteSpace(searchText))
+            return string.Empty;
+
+        // ✅ Safe escaping with length limit
+        var trimmed = searchText.Trim();
+        if (trimmed.Length > 500) // Prevent extremely long search terms
+        {
+            trimmed = trimmed.Substring(0, 500);
+        }
+
+        var escaped = trimmed
             .Replace("\"", "\"\"") // Double quotes
             .Replace("'", "''"); // Single quotes
 
-        // Eğer boşluk içeriyorsa phrase search yap
-        if (searchText.Contains(' '))
+        if (trimmed.Contains(' '))
         {
             return $"\"{escaped}\"";
         }
 
-        // Prefix search için * ekle (isteğe bağlı)
         return $"{escaped}*";
-    }
-
-    // LogEntry entity'sindeki Timestamp property'sini DateTimeOffset'e çevirmek için
-    private static List<LogEntry> MapTimestamps(IEnumerable<dynamic> results)
-    {
-        return results.Select(r => new LogEntry
-        {
-            Id = r.Id,
-            UniqueId = Guid.Parse(r.UniqueId),
-            CorrelationId = string.IsNullOrEmpty(r.CorrelationId) ? null : Guid.Parse(r.CorrelationId),
-            Message = r.Message,
-            Timestamp = DateTimeOffset.FromUnixTimeSeconds(r.TimestampUtc)
-                .ToOffset(TimeSpan.FromMinutes(r.OffsetMinutes)),
-            OffsetMinutes = r.OffsetMinutes,
-            Source = r.Source,
-            LevelId = r.LevelId
-        }).ToList();
-    }
-    
-    private static List<LogEntry> MapTimestamps(IEnumerable<LogEntry> results)
-    {
-        return results.Select(r => new LogEntry
-        {
-            Id = r.Id,
-            UniqueId = r.UniqueId,
-            CorrelationId = r.CorrelationId,
-            Message = r.Message,
-            Timestamp = DateTimeOffset.FromUnixTimeSeconds(r.TimestampUtc)
-                .ToOffset(TimeSpan.FromMinutes(r.OffsetMinutes)),
-            OffsetMinutes = r.OffsetMinutes,
-            Source = r.Source,
-            LevelId = r.LevelId
-        }).ToList();
     }
 
     #endregion

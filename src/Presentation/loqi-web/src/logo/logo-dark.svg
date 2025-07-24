@@ -10,10 +10,10 @@
     <circle cx="35" cy="22" r="6" fill="none" stroke="#fd7e14" stroke-width="2"/>
     <circle cx="35" cy="22" r="2" fill="#fd7e14" opacity=".2"/>
     <path stroke="#fd7e14" stroke-width="2" d="m40 27 4 4"/>
-    <text x="48" y="30" font-family="Inter, sans-serif" font-size="18" font-weight="400" fill="#fff">
-        Loq
+    <text x="48" y="32" font-family="Inter, sans-serif" font-size="18" font-weight="400" fill="#000">
+        LoQ
     </text>
-    <text x="78" y="30" font-family="Inter, sans-serif" font-size="18" font-weight="500" fill="#ea4334">
+    <text x="82" y="32" font-family="Inter, sans-serif" font-size="18" font-weight="500" fill="#ea4334">
         i
     </text>
 </svg>
