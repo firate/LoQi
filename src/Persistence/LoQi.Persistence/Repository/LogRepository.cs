@@ -69,6 +69,73 @@ public class LogRepository : ILogRepository
         return rows > 0;
     }
 
+    // High-performance batch insert
+    public async Task<bool> AddBatchAsync(IReadOnlyList<LogEntry> logEntries)
+    {
+        if (logEntries?.Count == 0)
+        {
+            return true; // Empty batch is considered successful
+        }
+
+        if (logEntries == null)
+        {
+            return false;
+        }
+
+        using var connection = _context.CreateConnection();
+        connection.Open(); // Explicit open for transaction
+
+        using var transaction = connection.BeginTransaction();
+
+        try
+        {
+            const string sqlInsert = """
+                                     insert into logs (unique_id, correlation_id, timestamp, offset_minutes, level, message, source)
+                                     values (@uniqueId, @correlationId, @timestamp, @offsetminutes, @level, @message, @source)
+                                     """;
+
+            // Prepare parameter objects for batch execution
+            var parameters = logEntries.Select(logEntry => new
+            {
+                uniqueId = logEntry.UniqueId,
+                correlationId = logEntry.CorrelationId,
+                timestamp = logEntry.TimestampUtc,
+                offsetminutes = logEntry.OffsetMinutes,
+                level = logEntry.LevelId,
+                message = logEntry.Message,
+                source = logEntry.Source
+            }).ToArray();
+
+            // Dapper batch execution - single round trip with multiple inserts
+            var rowsAffected = await connection.ExecuteAsync(sqlInsert, parameters, transaction);
+
+            // Verify all rows were inserted
+            if (rowsAffected != logEntries.Count)
+            {
+                transaction.Rollback();
+                return false;
+            }
+
+            transaction.Commit();
+            return true;
+        }
+        catch (Exception)
+        {
+            try
+            {
+                transaction.Rollback();
+            }
+            catch
+            {
+                // Rollback failed - transaction might be already rolled back
+                // Log this if needed, but don't throw
+            }
+
+            // Let the caller handle the exception
+            throw;
+        }
+    }
+
     public async Task<PaginatedData<LogEntry>> SearchLogsAsync(string? searchText, DateTimeOffset startDate,
         DateTimeOffset endDate, int? levelId, string? source,
         string? correlationId, int page, string? orderBy, int pageSize = 50, bool descending = true)
@@ -295,7 +362,7 @@ public class LogRepository : ILogRepository
     private static void BuildWhereConditionsForFilters(DateTimeOffset startDate, DateTimeOffset endDate,
         int? levelId, string? source, string? correlationId, List<string> whereConditions, DynamicParameters parameters)
     {
-        // ✅ Safe timestamp conversion
+        //  Safe timestamp conversion
         try
         {
             whereConditions.Add("l.timestamp >= @StartTimestamp");
@@ -314,20 +381,20 @@ public class LogRepository : ILogRepository
             parameters.Add("@EndTimestamp", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
         }
 
-       
+
         if (levelId is >= 0 and <= 5) // Valid log levels
         {
             whereConditions.Add("l.level = @Level");
             parameters.Add("@Level", levelId);
         }
 
-        
+
         if (!string.IsNullOrWhiteSpace(source) && source.Length <= 100) // Reasonable length limit
         {
             whereConditions.Add("l.source LIKE @Source");
             parameters.Add("@Source", $"%{source.Trim()}%");
         }
-        
+
         if (!string.IsNullOrWhiteSpace(correlationId))
         {
             // Validate it's a GUID format
@@ -384,7 +451,7 @@ public class LogRepository : ILogRepository
     private static string BuildOrderByClause(string? orderBy, bool descending)
     {
         var direction = descending ? "DESC" : "ASC";
-        
+
         var safeOrderBy = orderBy?.ToLowerInvariant()?.Trim();
         return safeOrderBy switch
         {
@@ -403,7 +470,8 @@ public class LogRepository : ILogRepository
         parameters.Add("@SearchText", searchTerm);
 
         // Add first word for message truncation
-        var firstWord = searchText.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? searchText;
+        var firstWord = searchText.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ??
+                        searchText;
         parameters.Add("@SearchWord", firstWord);
 
         var messageSelectClause = BuildMessageSelectClause(searchText);
@@ -480,7 +548,7 @@ public class LogRepository : ILogRepository
         {
             return string.Empty;
         }
-        
+
         var trimmed = searchText.Trim();
         if (trimmed.Length > 500) // Prevent extremely long search terms
         {

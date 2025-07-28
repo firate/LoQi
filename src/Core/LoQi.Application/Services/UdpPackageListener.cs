@@ -28,8 +28,8 @@ public class UdpPackageListener : IUdpPackageListener
             throw new InvalidOperationException("UDP listener is already running");
         }
 
-       
-        var channelOptions = new BoundedChannelOptions(5000)
+        //  INCREASED CAPACITY for high-throughput scenarios
+        var channelOptions = new BoundedChannelOptions(100_000) // 100K capacity (was 5K)
         {
             FullMode = BoundedChannelFullMode.DropOldest, 
             SingleReader = true, 
@@ -43,10 +43,15 @@ public class UdpPackageListener : IUdpPackageListener
         try
         {
             _udpClient = new UdpClient(port);
+            
+            //  OPTIMIZE UDP SOCKET BUFFERS
+            _udpClient.Client.ReceiveBufferSize = 8 * 1024 * 1024; // 8MB receive buffer
+            _udpClient.Client.SendBufferSize = 1024 * 1024; // 1MB send buffer
+            
             _isRunning = true;
 
-            _logger.LogInformation("UDP listener started on port {Port} with bounded channel capacity {Capacity}", port,
-                channelOptions.Capacity);
+            _logger.LogInformation("UDP listener started on port {Port} with channel capacity {Capacity} and socket buffer {BufferSize}KB", 
+                port, channelOptions.Capacity, _udpClient.Client.ReceiveBufferSize / 1024);
             
             _listenerTask = ListenAsync(cancellationToken);
         }
@@ -62,8 +67,9 @@ public class UdpPackageListener : IUdpPackageListener
 
     private async Task ListenAsync(CancellationToken cancellationToken)
     {
-        // var messageCount = 0;
-        // var lastStatsTime = DateTime.UtcNow;
+        var messageCount = 0;
+        var droppedCount = 0;
+        var lastStatsTime = DateTime.UtcNow;
 
         try
         {
@@ -79,24 +85,29 @@ public class UdpPackageListener : IUdpPackageListener
                     if (!_writer!.TryWrite(message.Trim()))
                     {
                         // Channel full - DropOldest policy devreye girer
-                        _logger.LogWarning("UDP channel is full, dropping oldest messages");
+                        droppedCount++;
+                        _logger.LogWarning("UDP channel is full, dropping oldest messages. Total dropped: {DroppedCount}", droppedCount);
                     }
 
-                    // ✅ Performance monitoring
-                    // messageCount++;
-                    // if (DateTime.UtcNow - lastStatsTime > TimeSpan.FromSeconds(30))
-                    // {
-                    //     //_logger.LogDebug("UDP listener processed {MessageCount} messages in last 30 seconds", messageCount);
-                    //     messageCount = 0;
-                    //     lastStatsTime = DateTime.UtcNow;
-                    // }
+                    messageCount++;
+
+                    //  Performance monitoring every 30 seconds
+                    if (DateTime.UtcNow - lastStatsTime > TimeSpan.FromSeconds(30))
+                    {
+                        var messagesPerSecond = messageCount / 30;
+                        _logger.LogInformation("UDP listener stats - Messages/sec: {MessagesPerSec}, Total dropped: {DroppedCount}",
+                            messagesPerSecond, droppedCount);
+                        
+                        messageCount = 0;
+                        lastStatsTime = DateTime.UtcNow;
+                    }
                 }
-                catch (OperationCanceledException e)
+                catch (OperationCanceledException)
                 {
                     _logger.LogInformation("UDP listener cancelled");
                     break;
                 }
-                catch (ObjectDisposedException e)
+                catch (ObjectDisposedException)
                 {
                     _logger.LogInformation("UDP client disposed");
                     break;
@@ -115,9 +126,44 @@ public class UdpPackageListener : IUdpPackageListener
             return;
         }
 
-        // ✅ Graceful shutdown
+        //  Graceful shutdown
         _writer?.Complete();
         _logger.LogInformation("UDP listener stopped gracefully");
+    }
+
+    /// <summary>
+    /// Estimate buffer usage percentage for monitoring
+    /// </summary>
+    private int GetEstimatedBufferUsage()
+    {
+        // Simple approximation based on TryWrite success
+        // In production, you might want to implement a custom channel with metrics
+        try
+        {
+            if (_writer == null) return -1;
+            
+            // Test if we can write without actually writing
+            // This is a rough estimation - not exact
+            if (_writer.TryWrite(string.Empty))
+            {
+                // If we can write empty string, channel has space
+                // Try to read it back to avoid polluting the stream
+                if (_channel?.Reader.TryRead(out _) == true)
+                {
+                    return 25; // Channel has good space
+                }
+            }
+            else
+            {
+                return 100; // Channel is full
+            }
+                
+            return 50; // Somewhere in between
+        }
+        catch
+        {
+            return -1; // Unknown
+        }
     }
 
     public async Task StopAsync()
@@ -129,7 +175,7 @@ public class UdpPackageListener : IUdpPackageListener
         _isRunning = false;
         _udpClient?.Close();
 
-        // ✅ Listener task'ının tamamlanmasını bekle
+        //  Listener task'ının tamamlanmasını bekle
         if (_listenerTask != null)
         {
             try
@@ -153,7 +199,7 @@ public class UdpPackageListener : IUdpPackageListener
             _isRunning = false;
             _udpClient?.Close();
 
-            // ✅ Synchronous wait with timeout
+            //  Synchronous wait with timeout
             try
             {
                 _listenerTask?.Wait(TimeSpan.FromSeconds(2));

@@ -37,14 +37,14 @@ public record ApiResponse<T>
         Pagination = pagination;
     }
 
-    // 🎯 Success factory methods
+    //  Success factory methods
     public static ApiResponse<T> Ok(T data)
         => new(true, data, null, null, null);
 
     public static ApiResponse<T> OkWithPagination(T data, PaginationInfo pagination)
         => new(true, data, null, null, pagination);
 
-    // 🎯 Error factory methods
+    //  Error factory methods
     public static ApiResponse<T> Fail(string error)
         => new(false, default, error, null, null);
 
@@ -54,7 +54,7 @@ public record ApiResponse<T>
     public static ApiResponse<T> Fail(Exception exception)
         => new(false, default, exception.Message, null, null);
 
-    // 🎯 HTTP Status specific methods
+    //  HTTP Status specific methods
     public static ApiResponse<T> BadRequest(string? message = null)
         => new(false, default, message ?? "Bad request", null, null);
 
@@ -67,7 +67,7 @@ public record ApiResponse<T>
     public static ApiResponse<T> Unauthorized(string? message = null)
         => new(false, default, message ?? "Unauthorized access", null, null);
 
-    // 🎯 Validation error için özel method (BadRequest'in alias'ı gibi)
+    //  Validation error için özel method (BadRequest'in alias'ı gibi)
     public static ApiResponse<T> ValidationError(string message, List<ApiError> validationErrors)
         => new(false, default, message, validationErrors, null);
 }

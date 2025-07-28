@@ -11,8 +11,6 @@ using Microsoft.AspNetCore.Mvc;
 using Scalar.AspNetCore;
 using Serilog;
 
-
-
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((context, configuration) =>
 {
@@ -40,7 +38,7 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     options.InvalidModelStateResponseFactory = context =>
     {
         var correlationId = context.HttpContext.TraceIdentifier ?? Guid.NewGuid().ToString();
-        
+
         var errors = context.ModelState
             .Where(x => x.Value?.Errors.Count > 0)
             .SelectMany(x => x.Value!.Errors.Select(e => new
@@ -63,8 +61,8 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
 
         // Log validation errors (informational level)
         var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-        logger.LogInformation("Validation failed for {RequestPath}: {Errors}", 
-            context.HttpContext.Request.Path, 
+        logger.LogInformation("Validation failed for {RequestPath}: {Errors}",
+            context.HttpContext.Request.Path,
             string.Join(", ", errors.Select(e => $"{e.field}: {e.message}")));
 
         return new BadRequestObjectResult(response);
@@ -77,11 +75,15 @@ builder.Services.AddHealthChecks();
 builder.Services.AddPersistenceServices(builder.Configuration);
 
 builder.Services.AddSingleton<IUdpPackageListener, UdpPackageListener>();
+
+builder.Services.AddSingleton<IBackgroundNotificationService, BackgroundNotificationService>();
+builder.Services.AddHostedService<BackgroundNotificationService>(provider => 
+    (BackgroundNotificationService)provider.GetRequiredService<IBackgroundNotificationService>());
+
 builder.Services.AddScoped<INotificationService, SignalRNotification>();
 builder.Services.AddScoped<ILogService, LogService>();
 
-// builder.Services.AddApplicationServices(builder.Configuration);
-
+builder.Services.AddHostedService<UdpLogProcessingService>();
 
 
 // TODO: later
@@ -93,17 +95,15 @@ builder.Services.AddOpenApi();
 // TODO: to be restricted
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll",
+    options.AddPolicy("DevPolicy",
         policy =>
         {
-            policy.WithOrigins("http://localhost:5003","http://localhost:3000")
+            policy.WithOrigins("http://localhost:5003", "http://localhost:3000", "http://localhost:8080")
                 .AllowAnyMethod()
                 .AllowAnyHeader()
                 .AllowCredentials();
         });
 });
-
-builder.Services.AddHostedService<UdpLogProcessingService>();
 
 var app = builder.Build();
 
@@ -118,7 +118,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.UseCors("AllowAll");
+app.UseCors("DevPolicy");
 
 app.MapHealthChecks("/health");
 
@@ -136,15 +136,13 @@ app.UseStaticFiles(new StaticFileOptions
 });
 
 app.UseRouting();
-app.MapControllers(); 
+app.MapControllers();
 
 // TODO: later
 //app.UseAuthorization();
 
-app.MapHub<LogHub>("/loghub", options =>
-{
-    options.Transports = HttpTransportType.WebSockets | HttpTransportType.LongPolling;
-});
+app.MapHub<LogHub>("/loghub",
+    options => { options.Transports = HttpTransportType.WebSockets | HttpTransportType.LongPolling; });
 
 app.MapFallbackToFile("index.html");
 

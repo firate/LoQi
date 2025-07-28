@@ -1,5 +1,5 @@
 services:
-  # 🗄️ Database Initialization
+  #  Database Initialization
   db-init:
     image: alpine:latest
     volumes:
@@ -14,7 +14,7 @@ services:
         if [ ! -s /data/loqi.db ]; then
           echo '🚀 Creating database with schema...'
           sqlite3 /data/loqi.db < /scripts/schema-creation.sql
-          echo '✅ Database created successfully!'
+          echo 'Database created successfully!'
       
           # Verify tables
           echo '🔍 Verifying tables:'
@@ -25,7 +25,7 @@ services:
           sqlite3 /data/loqi.db 'SELECT name FROM sqlite_master WHERE type=\"table\" AND name LIKE \"%fts%\";'
       
         else
-          echo '✅ Database already exists'
+          echo 'Database already exists'
           sqlite3 /data/loqi.db '.tables'
         fi
       
@@ -33,7 +33,7 @@ services:
       "
     restart: "no"
 
-  # 🚀 Ana Uygulama
+  #  Ana Uygulama
   loqi:
     platform: linux/amd64
     build:

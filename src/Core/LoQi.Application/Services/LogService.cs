@@ -3,26 +3,41 @@ using LoQi.Application.DTOs;
 using LoQi.Application.Repository;
 using LoQi.Domain;
 using LoQi.Application.Extensions;
+using Microsoft.Extensions.Logging;
 
 namespace LoQi.Application.Services;
 
 public class LogService : ILogService
 {
     private readonly ILogRepository _logRepository;
-    private readonly INotificationService _notificationService;
+    private readonly IBackgroundNotificationService _backgroundNotificationService;
+    private readonly ILogger<LogService> _logger;
 
-    public LogService(ILogRepository logRepository, INotificationService notificationService)
+    public LogService(
+        ILogRepository logRepository, 
+        IBackgroundNotificationService backgroundNotificationService,
+        ILogger<LogService> logger)
     {
         _logRepository = logRepository;
-        _notificationService = notificationService;
+        _backgroundNotificationService = backgroundNotificationService;
+        _logger = logger;
     }
 
     public async Task<bool> AddLogAsync(AddLogDto dto)
     {
         if (string.IsNullOrWhiteSpace(dto?.Message))
         {
-            // TODO: I'm going to use ErrorOr library for this type of situation
             return false;
+        }
+        
+        Guid? correlationId = null;
+        var correlationIdStr = dto?.CorrelationId;
+        if (!string.IsNullOrWhiteSpace(correlationIdStr))
+        {
+            if (Guid.TryParse(correlationIdStr, out Guid parsedCorrelationId))
+            {
+                correlationId = parsedCorrelationId;
+            }
         }
 
         var log = new LogEntry()
@@ -30,20 +45,97 @@ public class LogService : ILogService
             UniqueId = Guid.NewGuid(),
             Message = dto?.Message!,
             Source = string.IsNullOrWhiteSpace(dto?.Source) ? "Unknown" : dto.Source,
-            LevelId = dto.Level,
+            LevelId = dto?.Level ?? 2,   // 2, "Information"    // default
             Timestamp = DateTimeOffset.Now,
-            OffsetMinutes = DateTimeOffset.Now.TotalOffsetMinutes
+            OffsetMinutes = DateTimeOffset.Now.TotalOffsetMinutes,
+            CorrelationId = correlationId
         };
 
-        var isSaved = await _logRepository.AddAsync(log);
+        try
+        {
+            var isSaved = await _logRepository.AddAsync(log);
 
-        if (!isSaved) return false;
+            if (!isSaved)
+            {
+                _logger.LogWarning("Failed to save log entry to database");
+                return false;
+            }
 
-        await _notificationService.SendNotification(log);
+            //  Non-blocking notification: Smart channel queuing
+            _backgroundNotificationService.QueueNotification(log);
 
-        return true;
+            _logger.LogTrace("Log entry saved and notification queued: {LogId}", log.UniqueId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving log entry: {Message}", dto.Message);
+            return false;
+        }
     }
 
+    public async Task<bool> AddLogsBatchAsync(IReadOnlyList<LogEntry> logEntries)
+    {
+        if (logEntries?.Count == 0)
+        {
+            return true; // Empty batch is successful
+        }
+
+        if (logEntries == null)
+        {
+            _logger.LogWarning("Attempted to add null log entries batch");
+            return false;
+        }
+
+        try
+        {
+            // Validate log entries before batch insert
+            var validLogEntries = logEntries
+                .Where(log => !string.IsNullOrWhiteSpace(log?.Message))
+                .ToList();
+
+            if (validLogEntries.Count == 0)
+            {
+                _logger.LogWarning("No valid log entries found in batch of {TotalCount}", logEntries.Count);
+                return false;
+            }
+
+            if (validLogEntries.Count != logEntries.Count)
+            {
+                _logger.LogWarning("Filtered {Invalid} invalid entries from batch of {Total}", 
+                    logEntries.Count - validLogEntries.Count, logEntries.Count);
+            }
+
+            // Batch insert to database
+            var isSaved = await _logRepository.AddBatchAsync(validLogEntries);
+
+            if (!isSaved)
+            {
+                _logger.LogWarning("Failed to save batch of {Count} log entries to database", validLogEntries.Count);
+                return false;
+            }
+
+            // Queue notifications for real-time updates
+            // Note: Only queue if there are active listeners to avoid unnecessary overhead
+            if (_backgroundNotificationService.IsEnabled)
+            {
+                foreach (var logEntry in validLogEntries)
+                {
+                    _backgroundNotificationService.QueueNotification(logEntry);
+                }
+            }
+
+            _logger.LogTrace("Batch of {Count} log entries saved and notifications queued", validLogEntries.Count);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error saving batch of {Count} log entries", logEntries.Count);
+            return false;
+        }
+    }
+    
+    // Keep existing search method unchanged
     public async Task<PaginatedData<LogDto>> SearchLogsAsync(LogSearchDto dto)
     {
         if (dto == null)
@@ -110,6 +202,6 @@ public class LogService : ILogService
 
         return PaginatedData<LogDto>.Create(
             mappedLogs ?? [],
-            pagedResult?.PaginationInfo ?? new PaginationInfo(1,10, 0));
+            pagedResult?.PaginationInfo ?? new PaginationInfo(1, 10, 0));
     }
 }
