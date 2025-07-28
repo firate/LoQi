@@ -5,12 +5,12 @@ using LoQi.Application.Services;
 
 namespace LoQi.API.BackgroundServices;
 
-public class UdpLogProcessingService : BackgroundService
+public class UdpLogsProcessingService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly IUdpPackageListener _udpPackageListener;
     private readonly IConfiguration _configuration;
-    private readonly ILogger<UdpLogProcessingService> _logger;
+    private readonly ILogger<UdpLogsProcessingService> _logger;
 
     private readonly List<LogEntry> _logBuffer = new();
     private readonly object _bufferLock = new();
@@ -30,11 +30,11 @@ public class UdpLogProcessingService : BackgroundService
     private readonly TimeSpan _circuitOpenDuration = TimeSpan.FromMinutes(2);
     private readonly TimeSpan _maxAllowedDowntime = TimeSpan.FromMinutes(5);
 
-    public UdpLogProcessingService(
+    public UdpLogsProcessingService(
         IServiceProvider serviceProvider,
         IUdpPackageListener udpPackageListener,
         IConfiguration configuration,
-        ILogger<UdpLogProcessingService> logger)
+        ILogger<UdpLogsProcessingService> logger)
     {
         _serviceProvider = serviceProvider;
         _udpPackageListener = udpPackageListener;

@@ -76,7 +76,7 @@ builder.Services.AddPersistenceServices(builder.Configuration);
 builder.Services.AddSingleton<IUdpPackageListener, UdpPackageListener>();
 builder.Services.AddScoped<ILogService, LogService>();
 
-builder.Services.AddHostedService<LogFromUdpProcessingService>();
+builder.Services.AddHostedService<UdpLogsProcessingService>();
 
 
 // TODO: later
