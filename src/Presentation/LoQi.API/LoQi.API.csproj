@@ -29,4 +29,8 @@
       <ProjectReference Include="..\..\Persistence\LoQi.Persistence\LoQi.Persistence.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Folder Include="Services\" />
+    </ItemGroup>
+
 </Project>

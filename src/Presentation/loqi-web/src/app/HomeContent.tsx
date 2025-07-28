@@ -1,7 +1,6 @@
 "use client";
 import { useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import LogViewer from '../components/LogViewer';
 import LogSearchPage from '../components/LogSearchPage';
 import LogDetailSection from '../components/LogDetailSection';
 import Logo from '../components/Logo';
@@ -73,7 +72,6 @@ export default function HomeContent() {
             </div>
 
             <div>
-                {activeTab === 'live' && <LogViewer />}
                 {activeTab === 'search' && <LogSearchPage />}
             </div>
         </div>

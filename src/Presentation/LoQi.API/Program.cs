@@ -2,7 +2,6 @@ using FluentValidation;
 using FluentValidation.AspNetCore;
 using LoQi.API.BackgroundServices;
 using LoQi.API.Hubs;
-using LoQi.API.Services;
 using LoQi.API.Validators;
 using LoQi.Application.Services;
 using LoQi.Persistence;
@@ -75,15 +74,9 @@ builder.Services.AddHealthChecks();
 builder.Services.AddPersistenceServices(builder.Configuration);
 
 builder.Services.AddSingleton<IUdpPackageListener, UdpPackageListener>();
-
-builder.Services.AddSingleton<IBackgroundNotificationService, BackgroundNotificationService>();
-builder.Services.AddHostedService<BackgroundNotificationService>(provider => 
-    (BackgroundNotificationService)provider.GetRequiredService<IBackgroundNotificationService>());
-
-builder.Services.AddScoped<INotificationService, SignalRNotification>();
 builder.Services.AddScoped<ILogService, LogService>();
 
-builder.Services.AddHostedService<UdpLogProcessingService>();
+builder.Services.AddHostedService<LogFromUdpProcessingService>();
 
 
 // TODO: later

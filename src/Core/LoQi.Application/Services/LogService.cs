@@ -10,16 +10,13 @@ namespace LoQi.Application.Services;
 public class LogService : ILogService
 {
     private readonly ILogRepository _logRepository;
-    private readonly IBackgroundNotificationService _backgroundNotificationService;
     private readonly ILogger<LogService> _logger;
 
     public LogService(
         ILogRepository logRepository, 
-        IBackgroundNotificationService backgroundNotificationService,
         ILogger<LogService> logger)
     {
         _logRepository = logRepository;
-        _backgroundNotificationService = backgroundNotificationService;
         _logger = logger;
     }
 
@@ -60,9 +57,6 @@ public class LogService : ILogService
                 _logger.LogWarning("Failed to save log entry to database");
                 return false;
             }
-
-            //  Non-blocking notification: Smart channel queuing
-            _backgroundNotificationService.QueueNotification(log);
 
             _logger.LogTrace("Log entry saved and notification queued: {LogId}", log.UniqueId);
             return true;
@@ -115,16 +109,6 @@ public class LogService : ILogService
                 return false;
             }
 
-            // Queue notifications for real-time updates
-            // Note: Only queue if there are active listeners to avoid unnecessary overhead
-            if (_backgroundNotificationService.IsEnabled)
-            {
-                foreach (var logEntry in validLogEntries)
-                {
-                    _backgroundNotificationService.QueueNotification(logEntry);
-                }
-            }
-
             _logger.LogTrace("Batch of {Count} log entries saved and notifications queued", validLogEntries.Count);
             return true;
         }
@@ -169,7 +153,7 @@ public class LogService : ILogService
         }
 
         // Tarih değerlerini güvenli şekilde parse et
-        var startDate = dto.StartDate.ParseDateTimeOffset() ?? DateTimeOffset.UtcNow.AddDays(-7);
+        var startDate = dto.StartDate.ParseDateTimeOffset() ?? DateTimeOffset.UtcNow.AddHours(-1);
         var endDate = dto.EndDate.ParseDateTimeOffset() ?? DateTimeOffset.UtcNow;
 
         var pagedResult = await _logRepository.SearchLogsAsync(
