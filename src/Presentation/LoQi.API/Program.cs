@@ -1,11 +1,9 @@
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using LoQi.API.BackgroundServices;
-using LoQi.API.Hubs;
 using LoQi.API.Validators;
 using LoQi.Application.Services;
 using LoQi.Persistence;
-using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.Mvc;
 using Scalar.AspNetCore;
 using Serilog;
@@ -133,9 +131,6 @@ app.MapControllers();
 
 // TODO: later
 //app.UseAuthorization();
-
-app.MapHub<LogHub>("/loghub",
-    options => { options.Transports = HttpTransportType.WebSockets | HttpTransportType.LongPolling; });
 
 app.MapFallbackToFile("index.html");
 
