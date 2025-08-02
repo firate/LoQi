@@ -1,6 +1,6 @@
 using System.Threading.Channels;
 
-namespace LoQi.Application.Services;
+namespace LoQi.Application.Services.Udp;
 
 public interface IUdpPackageListener : IDisposable
 {

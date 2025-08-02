@@ -3,7 +3,7 @@ using System.Text;
 using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 
-namespace LoQi.Application.Services;
+namespace LoQi.Application.Services.Udp;
 
 public class UdpPackageListener : IUdpPackageListener
 {

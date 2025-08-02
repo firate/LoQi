@@ -1,9 +1,11 @@
-using LoQi.Domain;
 using System.Text.Json;
 using System.Threading.Channels;
 using LoQi.Application.Services;
+using LoQi.Application.Services.Log;
+using LoQi.Application.Services.Udp;
+using LoQi.Domain;
 
-namespace LoQi.API.BackgroundServices;
+namespace LoQi.API.BackgroundServices.Protocols;
 
 public class UdpLogsProcessingService : BackgroundService
 {
@@ -20,7 +22,6 @@ public class UdpLogsProcessingService : BackgroundService
     private int _maxMemoryMb;
     private int _maxBufferSize;
 
-    //  RESILIENCE STATE
     private int _consecutiveFailures = 0;
     private DateTime _lastSuccessTime = DateTime.UtcNow;
     private CircuitBreakerState _circuitState = CircuitBreakerState.Closed;
@@ -47,9 +48,14 @@ public class UdpLogsProcessingService : BackgroundService
         _maxMemoryMb = _configuration.GetValue<int>("LoQi:Batching:MaxMemoryMb", 100);
         _maxBufferSize = _configuration.GetValue<int>("LoQi:Batching:MaxBufferSize", 50000);
 
-        _logger.LogInformation(
-            "UDP batch processing initialized - BatchSize: {BatchSize}, FlushInterval: {FlushInterval}ms, MaxMemory: {MaxMemory}MB, MaxBuffer: {MaxBuffer}",
-            _batchSize, _flushIntervalMs, _maxMemoryMb, _maxBufferSize);
+        _logger.LogInformation("""
+                                  UDP batch processing initialized - 
+                                  BatchSize: {BatchSize}, 
+                                  FlushInterval: {FlushInterval}ms, 
+                                  MaxMemory: {MaxMemory}MB, 
+                                  MaxBuffer: {MaxBuffer}
+                               """, _batchSize, _flushIntervalMs, _maxMemoryMb, _maxBufferSize);
+        
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -63,13 +69,13 @@ public class UdpLogsProcessingService : BackgroundService
             // Start periodic timers
             using var flushTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(_flushIntervalMs));
             using var monitorTimer = new PeriodicTimer(TimeSpan.FromSeconds(30));
-            
+
             var flushTask = RunFlushTimer(flushTimer, stoppingToken);
             var monitorTask = RunMonitorTimer(monitorTimer, stoppingToken);
 
             var messageReader = _udpPackageListener.StartAsync(port, stoppingToken);
             var udpTask = ProcessUdpMessages(messageReader, stoppingToken);
-        
+
             //  Wait for all tasks to complete or first exception
             await Task.WhenAll(udpTask, flushTask, monitorTask);
         }
@@ -89,7 +95,7 @@ public class UdpLogsProcessingService : BackgroundService
             _logger.LogInformation("UDP log processing service stopped");
         }
     }
-    
+
     private async Task ProcessUdpMessages(ChannelReader<string> messageReader, CancellationToken stoppingToken)
     {
         var processedCount = 0;
@@ -110,6 +116,7 @@ public class UdpLogsProcessingService : BackgroundService
                     {
                         _logger.LogWarning("Circuit breaker open - dropped {Count} messages", droppedCount);
                     }
+
                     continue;
                 }
 
@@ -120,13 +127,13 @@ public class UdpLogsProcessingService : BackgroundService
                     case BatchResult.Added:
                         processedCount++;
                         break;
-                        
+
                     case BatchResult.BufferFull:
                         droppedCount++;
                         //  Direct call instead of fire-and-forget Task.Run
                         await EmergencyFlush();
                         break;
-                        
+
                     case BatchResult.ShouldFlush:
                         processedCount++;
                         //  Direct call instead of fire-and-forget Task.Run
@@ -152,7 +159,7 @@ public class UdpLogsProcessingService : BackgroundService
             }
         }
     }
-    
+
     private async Task RunFlushTimer(PeriodicTimer timer, CancellationToken cancellationToken)
     {
         try
@@ -171,7 +178,7 @@ public class UdpLogsProcessingService : BackgroundService
             _logger.LogError(ex, "Flush timer failed");
         }
     }
-    
+
     private async Task RunMonitorTimer(PeriodicTimer timer, CancellationToken cancellationToken)
     {
         try
@@ -408,7 +415,7 @@ public class UdpLogsProcessingService : BackgroundService
             return _logBuffer.Count;
         }
     }
-    
+
     private async Task HandleFailedBatch(List<LogEntry> failedLogs)
     {
         try
@@ -439,12 +446,7 @@ public class UdpLogsProcessingService : BackgroundService
     {
         try
         {
-            if (IsJsonFormat(rawMessage))
-            {
-                return ParseJsonLogEntry(rawMessage);
-            }
-
-            return ParsePlainTextEntry(rawMessage);
+            return IsJsonFormat(rawMessage) ? ParseJsonLogEntry(rawMessage) : ParsePlainTextEntry(rawMessage);
         }
         catch (Exception ex)
         {
@@ -511,7 +513,7 @@ public class UdpLogsProcessingService : BackgroundService
             "warn" or "warning" => 3,
             "error" => 4,
             "fatal" or "critical" => 5,
-            _ => 2  // Info default
+            _ => 2 // Info default
         };
     }
 
@@ -551,8 +553,8 @@ public class UdpLogsProcessingService : BackgroundService
 
     private enum CircuitBreakerState
     {
-        Closed,   // Normal operation
-        Open,     // Failing, dropping messages
-        HalfOpen  // Testing if service recovered
+        Closed, // Normal operation
+        Open, // Failing, dropping messages
+        HalfOpen // Testing if service recovered
     }
 }

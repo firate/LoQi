@@ -2,12 +2,12 @@ namespace LoQi.Domain.Enums;
 
 public enum LogLevel
 {
-    Verbose = 0,      // En detaylı - sadece development
-    Debug = 1,        // Debug bilgileri - development/staging  
-    Information = 2,  // Normal işlem bilgileri - production
-    Warning = 3,      // Uyarılar - production
-    Error = 4,        // Hatalar - production
-    Fatal = 5         // Kritik hatalar - production
+    Verbose = 0, // En detaylı - sadece development
+    Debug = 1, // Debug bilgileri - development/staging  
+    Information = 2, // Normal işlem bilgileri - production
+    Warning = 3, // Uyarılar - production
+    Error = 4, // Hatalar - production
+    Fatal = 5 // Kritik hatalar - production
 }
 
 // String mapping
@@ -22,7 +22,7 @@ public static class LogLevelNames
         { 4, "Error" },
         { 5, "Fatal" }
     };
-    
+
     public static readonly Dictionary<string, int> Values = new()
     {
         { "Verbose", 0 },

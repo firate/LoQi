@@ -1,9 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using LoQi.API.Controllers.Base;
+using LoQi.API.Dtos;
 using LoQi.API.Models;
 using LoQi.Application.Common;
 using LoQi.Application.DTOs;
-using LoQi.Application.Services;
+using LoQi.Application.Services.Log;
 
 namespace LoQi.API.Controllers;
 
