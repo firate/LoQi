@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace LoQi.Application.Services;
+namespace LoQi.Application.Services.Grok;
 
 public class GrokParser
 {

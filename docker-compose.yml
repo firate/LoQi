@@ -7,21 +7,21 @@ services:
       - ./scripts/schema-creation.sql:/scripts/schema-creation.sql
     command: |
       sh -c "
-        echo '📦 Installing SQLite...'
+        echo ' Installing SQLite...'
         apk add --no-cache sqlite
       
-        echo '🔍 Checking database...'
+        echo ' Checking database...'
         if [ ! -s /data/loqi.db ]; then
-          echo '🚀 Creating database with schema...'
+          echo ' Creating database with schema...'
           sqlite3 /data/loqi.db < /scripts/schema-creation.sql
           echo 'Database created successfully!'
       
           # Verify tables
-          echo '🔍 Verifying tables:'
+          echo ' Verifying tables:'
           sqlite3 /data/loqi.db '.tables'
       
           # Check FTS5 table
-          echo '🔍 Checking FTS5 support:'
+          echo ' Checking FTS5 support:'
           sqlite3 /data/loqi.db 'SELECT name FROM sqlite_master WHERE type=\"table\" AND name LIKE \"%fts%\";'
       
         else
@@ -29,13 +29,27 @@ services:
           sqlite3 /data/loqi.db '.tables'
         fi
       
-        echo '🎉 Database initialization completed!'
+        echo ' Database initialization completed!'
       "
     restart: "no"
 
+
+  redis:
+    command: redis-server --appendonly yes --maxmemory 2gb --maxmemory-policy allkeys-lru --save 900 1 --save 300 10 --save 60 10000
+    environment:
+      - REDIS_REPLICATION_MODE=master
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+          
   #  Ana Uygulama
   loqi:
-    platform: linux/amd64
+    #platform: linux/amd64
     build:
       context: .
       dockerfile: Dockerfile
@@ -51,6 +65,11 @@ services:
       - ConnectionStrings__DefaultConnection=Data Source=/app/data/loqi.db
       - Logging__LogLevel__Default=Information
       - UdpListener__Port=10080
+      - LoQi__Redis__Stream__MaxStreamLength=5000000
+      - LoQi__Redis__Stream__ConsumerGroups__processed-logs__BatchSize=1000
+      - LoQi__Redis__Stream__ConsumerGroups__processed-logs__BlockTimeMs=500
+      - LoQi__Redis__Stream__ConsumerGroups__failed-logs__BatchSize=100
+      - LoQi__Redis__Stream__ConsumerGroups__retry-logs__BatchSize=200
     volumes:
       - loqi_data:/app/data
       - loqi_logs:/app/logs

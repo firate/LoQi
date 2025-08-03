@@ -30,8 +30,11 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Hubs\" />
-      <Folder Include="Services\" />
+      <_ContentIncludedByDefault Remove="logs\dead-letter\failed-batch-20250727-110310-3ced749a31484c1297eea28ad1af740f.json" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="logs\" />
     </ItemGroup>
 
 </Project>

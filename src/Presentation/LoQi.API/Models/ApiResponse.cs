@@ -3,19 +3,6 @@ using LoQi.Application.Common;
 
 namespace LoQi.API.Models;
 
-public record ApiError
-{
-    public string Field { get; init; } = string.Empty;
-    public string Message { get; init; } = string.Empty;
-    public object? AttemptedValue { get; init; }
-    public ApiError(string field, string message, object? attemptedValue = null)
-    {
-        Field = field;
-        Message = message;
-        AttemptedValue = attemptedValue;
-    }
-}
-
 public record ApiResponse<T>
 {
     public bool Success { get; init; }
@@ -71,21 +58,3 @@ public record ApiResponse<T>
     public static ApiResponse<T> ValidationError(string message, List<ApiError> validationErrors)
         => new(false, default, message, validationErrors, null);
 }
-
-
-
-public record LogMetadataDto
-{
-    public List<LogLevelDto> LogLevels { get; init; } = [];
-    public List<OrderByOptionDto> OrderByOptions { get; init; } = [];
-    public List<PageSizeOptionDto> PageSizeOptions { get; init; } = [];
-    public List<SortOrderOptionDto> SortOrderOptions { get; init; } = [];
-}
-
-public record LogLevelDto(int Value, string Label, string Color);
-
-public record OrderByOptionDto(string Value, string Label);
-
-public record PageSizeOptionDto(int Value, string Label);
-
-public record SortOrderOptionDto(string Value, string Label, bool IsDescending);
