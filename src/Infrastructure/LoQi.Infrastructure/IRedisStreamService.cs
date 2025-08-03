@@ -1,3 +1,4 @@
+using LoQi.Application.DTOs;
 using LoQi.Infrastructure.Models;
 using StackExchange.Redis;
 

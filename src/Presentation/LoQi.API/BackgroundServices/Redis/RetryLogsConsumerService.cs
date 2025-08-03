@@ -1,5 +1,4 @@
 using LoQi.Infrastructure;
-using LoQi.Infrastructure.Extensions;
 using LoQi.Infrastructure.Models;
 using Microsoft.Extensions.Options;
 
@@ -46,33 +45,33 @@ public class RetryLogsConsumerService : BackgroundService
 
                 if (messages.Length > 0)
                 {
-                    var logMessages = messages.Select(m => m.ParseLogMessage()).ToList();
-                    
-                    // TODO: Retry log parsing logic
-                    foreach (var logMessage in logMessages)
-                    {
-                        if (logMessage.Attempts < _config.ConsumerGroups["retry-logs"].MaxRetries)
-                        {
-                            // TODO: Attempt to reparse the log
-                            // If successful -> add to processed-logs stream
-                            // If failed again -> increment attempts and re-add to retry-logs or move to failed-logs
-                        }
-                        else
-                        {
-                            // Max retries reached, move to failed-logs
-                            await redisStreamService.AddLogMessageAsync(
-                                logMessage.OriginalData,
-                                LogProcessingStatus.Failed,
-                                errorInfo: $"Max retries ({logMessage.Attempts}) exceeded",
-                                attempts: logMessage.Attempts);
-                        }
-                    }
-
-                    // Acknowledge processed messages
-                    var messageIds = messages.Select(m => m.Id.ToString()).ToArray();
-                    await redisStreamService.AcknowledgeMessagesAsync("retry-logs", messageIds);
-
-                    _logger.LogInformation("Processed {Count} retry log messages", messages.Length);
+                    // var logMessages = messages.Select(m => m.ParseLogMessage()).ToList();
+                    //
+                    // // TODO: Retry log parsing logic
+                    // foreach (var logMessage in logMessages)
+                    // {
+                    //     if (logMessage.Attempts < _config.ConsumerGroups["retry-logs"].MaxRetries)
+                    //     {
+                    //         // TODO: Attempt to reparse the log
+                    //         // If successful -> add to processed-logs stream
+                    //         // If failed again -> increment attempts and re-add to retry-logs or move to failed-logs
+                    //     }
+                    //     else
+                    //     {
+                    //         // Max retries reached, move to failed-logs
+                    //         await redisStreamService.AddLogMessageAsync(
+                    //             logMessage.OriginalData,
+                    //             LogProcessingStatus.Failed,
+                    //             errorInfo: $"Max retries ({logMessage.Attempts}) exceeded",
+                    //             attempts: logMessage.Attempts);
+                    //     }
+                    // }
+                    //
+                    // // Acknowledge processed messages
+                    // var messageIds = messages.Select(m => m.Id.ToString()).ToArray();
+                    // await redisStreamService.AcknowledgeMessagesAsync("retry-logs", messageIds);
+                    //
+                    // _logger.LogInformation("Processed {Count} retry log messages", messages.Length);
                 }
             }
             catch (OperationCanceledException)

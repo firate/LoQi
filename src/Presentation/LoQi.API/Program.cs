@@ -4,7 +4,6 @@ using LoQi.API.BackgroundServices.Protocols;
 using LoQi.API.BackgroundServices.Redis;
 using LoQi.API.Validators;
 using LoQi.Application.Services.Log;
-using LoQi.Application.Services.Udp;
 using LoQi.Infrastructure.Extensions;
 using LoQi.Persistence;
 using Microsoft.AspNetCore.Mvc;
@@ -74,11 +73,11 @@ builder.Services.AddHealthChecks();
 
 builder.Services.AddPersistenceServices(builder.Configuration);
 
-builder.Services.AddSingleton<IUdpPackageListener, UdpPackageListener>();
+//builder.Services.AddSingleton<IUdpPackageListener, UdpPackageListener2>();
 builder.Services.AddScoped<ILogService, LogService>();
 
 // Background Services
-builder.Services.AddHostedService<UdpLogsProcessingService>();
+builder.Services.AddHostedService<UdpPackageListener>();
 
 // Redis Stream Configuration
 builder.Services.AddRedisStream(builder.Configuration);

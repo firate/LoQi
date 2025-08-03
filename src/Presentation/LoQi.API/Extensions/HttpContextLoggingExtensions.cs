@@ -12,7 +12,7 @@ public static class HttpContextLoggingExtensions
             ["RequestPath"] = context.GetSafeRequestPath(),
             ["RequestMethod"] = context.GetSafeRequestMethod(),
             ["UserAgent"] = context.GetSafeUserAgent(),
-            ["RemoteIP"] = context.GetSafeRemoteIP(),
+            ["RemoteIP"] = context.GetSafeRemoteIp(),
             ["RequestId"] = context?.TraceIdentifier ?? "unknown",
             ["ContentType"] = context.GetSafeContentType(),
             ["QueryString"] = context.GetSafeQueryString(),
@@ -24,7 +24,7 @@ public static class HttpContextLoggingExtensions
         };
     }
 
-    public static string GetSafeRequestPath(this HttpContext? context)
+    private static string GetSafeRequestPath(this HttpContext? context)
     {
         try
         {
@@ -36,7 +36,7 @@ public static class HttpContextLoggingExtensions
         }
     }
 
-    public static string GetSafeRequestMethod(this HttpContext? context)
+    private static string GetSafeRequestMethod(this HttpContext? context)
     {
         try
         {
@@ -49,7 +49,7 @@ public static class HttpContextLoggingExtensions
         }
     }
 
-    public static string GetSafeUserAgent(this HttpContext? context)
+    private static string GetSafeUserAgent(this HttpContext? context)
     {
         try
         {
@@ -65,7 +65,7 @@ public static class HttpContextLoggingExtensions
         }
     }
 
-    public static string GetSafeRemoteIP(this HttpContext? context)
+    private static string GetSafeRemoteIp(this HttpContext? context)
     {
         try
         {
@@ -94,7 +94,7 @@ public static class HttpContextLoggingExtensions
         }
     }
 
-    public static string GetSafeContentType(this HttpContext? context)
+    private static string GetSafeContentType(this HttpContext? context)
     {
         try
         {
@@ -107,7 +107,7 @@ public static class HttpContextLoggingExtensions
         }
     }
 
-    public static string GetSafeQueryString(this HttpContext? context)
+    private static string GetSafeQueryString(this HttpContext? context)
     {
         try
         {
@@ -120,7 +120,7 @@ public static class HttpContextLoggingExtensions
         }
     }
 
-    public static string GetSafeHost(this HttpContext? context)
+    private static string GetSafeHost(this HttpContext? context)
     {
         try
         {

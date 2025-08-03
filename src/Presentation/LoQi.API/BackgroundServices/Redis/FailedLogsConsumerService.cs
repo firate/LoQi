@@ -1,5 +1,3 @@
-using LoQi.Infrastructure;
-using LoQi.Infrastructure.Extensions;
 using LoQi.Infrastructure.Models;
 using Microsoft.Extensions.Options;
 
@@ -32,45 +30,45 @@ public class FailedLogsConsumerService : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            try
-            {
-                using var scope = _serviceProvider.CreateScope();
-                var redisStreamService = scope.ServiceProvider.GetRequiredService<IRedisStreamService>();
-                
-                // Read failed log messages
-                var messages = await redisStreamService.ReadMessagesAsync(
-                    "failed-logs", 
-                    _consumerName,
-                    _config.ConsumerGroups["failed-logs"].BatchSize,
-                    _config.ConsumerGroups["failed-logs"].BlockTimeMs);
-
-                if (messages.Length > 0)
-                {
-                    var logMessages = messages.Select(m => m.ParseLogMessage()).ToList();
-                    
-                    // TODO: Handle failed logs - log to file, send alerts, etc.
-                    foreach (var logMessage in logMessages)
-                    {
-                        _logger.LogWarning("Failed to parse log: {OriginalData}, Error: {ErrorInfo}", 
-                            logMessage.OriginalData, logMessage.ErrorInfo);
-                    }
-
-                    // Acknowledge processed messages
-                    var messageIds = messages.Select(m => m.Id.ToString()).ToArray();
-                    await redisStreamService.AcknowledgeMessagesAsync("failed-logs", messageIds);
-
-                    _logger.LogInformation("Handled {Count} failed log messages", messages.Length);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error handling failed logs from Redis stream");
-                await Task.Delay(10000, stoppingToken); // Longer wait for failed logs
-            }
+            // try
+            // {
+            //     using var scope = _serviceProvider.CreateScope();
+            //     var redisStreamService = scope.ServiceProvider.GetRequiredService<IRedisStreamService>();
+            //     
+            //     // Read failed log messages
+            //     var messages = await redisStreamService.ReadMessagesAsync(
+            //         "failed-logs", 
+            //         _consumerName,
+            //         _config.ConsumerGroups["failed-logs"].BatchSize,
+            //         _config.ConsumerGroups["failed-logs"].BlockTimeMs);
+            //
+            //     if (messages.Length > 0)
+            //     {
+            //         var logMessages = messages.Select(m => m.ParseLogMessage()).ToList();
+            //         
+            //         // TODO: Handle failed logs - log to file, send alerts, etc.
+            //         foreach (var logMessage in logMessages)
+            //         {
+            //             _logger.LogWarning("Failed to parse log: {OriginalData}, Error: {ErrorInfo}", 
+            //                 logMessage.OriginalData, logMessage.ErrorInfo);
+            //         }
+            //
+            //         // Acknowledge processed messages
+            //         var messageIds = messages.Select(m => m.Id.ToString()).ToArray();
+            //         await redisStreamService.AcknowledgeMessagesAsync("failed-logs", messageIds);
+            //
+            //         _logger.LogInformation("Handled {Count} failed log messages", messages.Length);
+            //     }
+            // }
+            // catch (OperationCanceledException)
+            // {
+            //     break;
+            // }
+            // catch (Exception ex)
+            // {
+            //     _logger.LogError(ex, "Error handling failed logs from Redis stream");
+            //     await Task.Delay(10000, stoppingToken); // Longer wait for failed logs
+            // }
         }
 
         _logger.LogInformation("FailedLogsConsumerService stopped");
