@@ -19,7 +19,8 @@ public class ProcessedLogsConsumerService : BackgroundService
     private readonly RedisStreamConfig _config;
     private readonly string _consumerName;
 
-    private readonly ILogMapperService _logMapperService;
+    // this service makes log parsing, constructor injection is enough
+    private readonly ILogParserService _logParserService;
 
     //  Batching configuration
     private const int MAX_BATCH_SIZE = 100; // 100 mesaj toplandığında flush
@@ -33,11 +34,11 @@ public class ProcessedLogsConsumerService : BackgroundService
     public ProcessedLogsConsumerService(
         IServiceProvider serviceProvider,
         ILogger<ProcessedLogsConsumerService> logger,
-        IOptions<RedisStreamConfig> config, ILogMapperService logMapperService)
+        IOptions<RedisStreamConfig> config, ILogParserService logParserService)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
-        _logMapperService = logMapperService;
+        _logParserService = logParserService;
         _config = config.Value;
         _consumerName = $"processed-consumer-{Environment.MachineName}-{Guid.NewGuid():N}";
     }
@@ -191,6 +192,7 @@ public class ProcessedLogsConsumerService : BackgroundService
         }
     }
 
+
     /// <summary>
     /// Process a batch of messages
     /// </summary>
@@ -199,26 +201,26 @@ public class ProcessedLogsConsumerService : BackgroundService
         try
         {
             using var scope = _serviceProvider.CreateScope();
-            var _redisStreamService = scope.ServiceProvider.GetRequiredService<IRedisStreamService>();
-            var _logService = scope.ServiceProvider.GetRequiredService<ILogService>();
+            var redisStreamService = scope.ServiceProvider.GetRequiredService<IRedisStreamService>();
+            var logService = scope.ServiceProvider.GetRequiredService<ILogService>();
 
             var logMessages = batchItems.Select(item => item.Message).ToList();
             var messageIds = batchItems.Select(item => item.MessageId).ToArray();
 
-            _logger.LogInformation("Processing batch of {Count} messages (triggered by: {Trigger})",
-                batchItems.Count, trigger);
+            _logger.LogInformation("Processing batch of {Count} messages (triggered by: {Trigger})", batchItems.Count, trigger);
+            
+            var rawLogs = logMessages.Select(x => x.OriginalData).ToList();
+            var logs = await _logParserService.ConvertToLogEntryAsync(rawLogs);
 
             // Bulk insert to SQLite
+            var isSuccessful = await logService.AddLogsBatchAsync(logs);
 
-            var rawLogs = logMessages.Select(x => x.OriginalData).ToList();
-            var logs = await _logMapperService.ConvertToLogEntryAsync(rawLogs);
-
-            await _logService.AddLogsBatchAsync(logs);
-
-            //  Acknowledge all messages in batch
-            await _redisStreamService.AcknowledgeMessagesAsync("processed-logs", messageIds);
-
-            _logger.LogInformation("Successfully processed batch of {Count} messages", batchItems.Count);
+            if (isSuccessful)
+            {
+                //  Acknowledge all messages in batch
+                await redisStreamService.AcknowledgeMessagesAsync("processed-logs", messageIds);
+                _logger.LogInformation("Successfully processed batch of {Count} messages", batchItems.Count);
+            }
         }
         catch (Exception ex)
         {

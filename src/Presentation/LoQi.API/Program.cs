@@ -72,9 +72,8 @@ builder.Services.AddSignalR();
 builder.Services.AddHealthChecks();
 
 builder.Services.AddPersistenceServices(builder.Configuration);
-builder.Services.AddScoped<ILogMapperService, LogMapperService>();
+builder.Services.AddScoped<ILogParserService, LogParserService>();
 
-//builder.Services.AddSingleton<IUdpPackageListener, UdpPackageListener2>();
 builder.Services.AddScoped<ILogService, LogService>();
 
 // Background Services
@@ -85,8 +84,7 @@ builder.Services.AddRedisStream(builder.Configuration);
         
 // Redis Stream Consumer Services
 builder.Services.AddHostedService<ProcessedLogsConsumerService>();
-builder.Services.AddHostedService<FailedLogsConsumerService>();
-builder.Services.AddHostedService<RetryLogsConsumerService>();
+
 
 // TODO: later
 //builder.Services.AddAuthorization();

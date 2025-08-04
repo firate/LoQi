@@ -12,7 +12,7 @@ public class GlobalExceptionHandlingMiddleware
     private readonly IWebHostEnvironment _environment;
 
     public GlobalExceptionHandlingMiddleware(
-        RequestDelegate next, 
+        RequestDelegate next,
         ILogger<GlobalExceptionHandlingMiddleware> logger,
         IWebHostEnvironment environment)
     {
@@ -36,7 +36,7 @@ public class GlobalExceptionHandlingMiddleware
     private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
         var correlationId = GetOrCreateCorrelationId(context);
-        
+
         var response = exception switch
         {
             BaseException baseEx => CreateBaseExceptionResponse(baseEx, correlationId),
@@ -47,7 +47,7 @@ public class GlobalExceptionHandlingMiddleware
             _ => CreateGenericErrorResponse(exception, correlationId)
         };
 
-        // ✅ NULL-SAFE LOGGING with extension method
+        // NULL-SAFE LOGGING with extension method
         LogExceptionSafely(exception, correlationId, context);
 
         context.Response.StatusCode = response.StatusCode;
@@ -162,18 +162,22 @@ public class GlobalExceptionHandlingMiddleware
                     innerException = exception.InnerException?.Message
                 }
             };
-        }
-        else
-        {
-            errorDetails = new
+            
+            return new ErrorResponse
             {
-                success = false,
-                error = "An internal error occurred",
-                errorCode = "INTERNAL_ERROR",
-                correlationId = correlationId,
-                timestamp = DateTimeOffset.UtcNow
+                StatusCode = (int)HttpStatusCode.InternalServerError,
+                Body = errorDetails
             };
         }
+
+        errorDetails = new
+        {
+            success = false,
+            error = "An internal error occurred",
+            errorCode = "INTERNAL_ERROR",
+            correlationId = correlationId,
+            timestamp = DateTimeOffset.UtcNow
+        };
 
         return new ErrorResponse
         {
@@ -182,39 +186,38 @@ public class GlobalExceptionHandlingMiddleware
         };
     }
 
-    
 
     private void LogExceptionSafely(Exception exception, string correlationId, HttpContext? context)
     {
         var logLevel = exception switch
         {
             ArgumentException => LogLevel.Warning,
-            BaseException baseEx when baseEx.StatusCode < 500 => LogLevel.Warning,
+            BaseException baseEx when baseEx?.StatusCode < 500 => LogLevel.Warning,
             BaseException => LogLevel.Error,
             _ => LogLevel.Error
         };
 
         try
         {
-            // ✅ SUPER SAFE - Extension method handles all null checks
+            // SUPER SAFE - Extension method handles all null checks
             using var scope = _logger.BeginScope(context.CreateSafeLoggingContext(correlationId));
 
-            _logger.Log(logLevel, exception, 
-                "Exception occurred: {ExceptionType} - {Message}", 
+            _logger.Log(logLevel, exception,
+                "Exception occurred: {ExceptionType} - {Message}",
                 exception.GetType().Name, exception.Message);
         }
         catch (Exception loggingException)
         {
-            // ✅ Fallback logging if scope creation fails
+            // Fallback logging if scope creation fails
             try
             {
-                _logger.LogError(loggingException, 
-                    "Failed to create logging scope for exception: {OriginalException}", 
+                _logger.LogError(loggingException,
+                    "Failed to create logging scope for exception: {OriginalException}",
                     exception.Message);
-                
+
                 // Simple log without scope
-                _logger.Log(logLevel, exception, 
-                    "Exception occurred (no context): {ExceptionType} - {Message}", 
+                _logger.Log(logLevel, exception,
+                    "Exception occurred (no context): {ExceptionType} - {Message}",
                     exception.GetType().Name, exception.Message);
             }
             catch
@@ -228,31 +231,34 @@ public class GlobalExceptionHandlingMiddleware
     private static string GetOrCreateCorrelationId(HttpContext? context)
     {
         const string correlationIdHeaderName = "X-Correlation-ID";
-        
+
         try
         {
             if (context?.Request?.Headers?.TryGetValue(correlationIdHeaderName, out var correlationId) == true)
             {
                 var idValue = correlationId.FirstOrDefault();
                 if (!string.IsNullOrWhiteSpace(idValue))
+                {
                     return idValue;
+                }
             }
 
             var newCorrelationId = Guid.NewGuid().ToString();
-            
             // Safe header addition
-            if (context?.Response?.Headers != null)
+            if (context?.Response?.Headers is null)
             {
-                try
-                {
-                    context?.Response?.Headers?.Add(correlationIdHeaderName, newCorrelationId);
-                }
-                catch
-                {
-                    // Ignore header addition errors
-                }
+                return newCorrelationId;
             }
-            
+
+            try
+            {
+                context?.Response?.Headers?.TryAdd(correlationIdHeaderName, newCorrelationId);
+            }
+            catch
+            {
+                // Ignore header addition errors
+            }
+
             return newCorrelationId;
         }
         catch
@@ -267,12 +273,16 @@ public class GlobalExceptionHandlingMiddleware
         public object Body { get; set; } = null!;
     }
     
+    
+
     private static string GetSafeUserAgent(HttpContext? context)
     {
         try
         {
-            if (context?.Request?.Headers == null)
+            if (context?.Request?.Headers is null)
+            {
                 return "unknown";
+            }
 
             var userAgent = context.Request.Headers.UserAgent.ToString();
             return string.IsNullOrWhiteSpace(userAgent) ? "unknown" : userAgent;
@@ -287,8 +297,10 @@ public class GlobalExceptionHandlingMiddleware
     {
         try
         {
-            if (context?.Connection?.RemoteIpAddress == null)
+            if (context?.Connection?.RemoteIpAddress is null)
+            {
                 return "unknown";
+            }
 
             var ip = context.Connection.RemoteIpAddress.ToString();
             return string.IsNullOrWhiteSpace(ip) ? "unknown" : ip;
@@ -303,15 +315,17 @@ public class GlobalExceptionHandlingMiddleware
     {
         try
         {
-            if (context?.Request?.QueryString == null)
-                return "";
-
-            var queryString = context.Request.QueryString.ToString();
-            return queryString ?? "";
+            if (context?.Request?.QueryString is null)
+            {
+                return string.Empty;
+            }
+            
+            var queryString = context?.Request?.QueryString.ToString();
+            return queryString ?? string.Empty;
         }
         catch
         {
-            return "";
+            return string.Empty;
         }
     }
 
@@ -320,9 +334,11 @@ public class GlobalExceptionHandlingMiddleware
         try
         {
             if (context?.Request?.Host == null)
+            {
                 return "unknown";
+            }
 
-            var host = context.Request.Host.ToString();
+            var host = context?.Request?.Host.ToString();
             return string.IsNullOrWhiteSpace(host) ? "unknown" : host;
         }
         catch
