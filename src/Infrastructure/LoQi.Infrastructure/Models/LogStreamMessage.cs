@@ -12,6 +12,5 @@ public class LogStreamMessage
     public LogProcessingStatus Status { get; set; }
     public string? ParsedData { get; set; }
     public string? ErrorInfo { get; set; }
-    public long Timestamp { get; set; }
     public int Attempts { get; set; }
 }

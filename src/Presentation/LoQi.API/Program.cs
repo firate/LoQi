@@ -72,6 +72,7 @@ builder.Services.AddSignalR();
 builder.Services.AddHealthChecks();
 
 builder.Services.AddPersistenceServices(builder.Configuration);
+builder.Services.AddScoped<ILogMapperService, LogMapperService>();
 
 //builder.Services.AddSingleton<IUdpPackageListener, UdpPackageListener2>();
 builder.Services.AddScoped<ILogService, LogService>();
