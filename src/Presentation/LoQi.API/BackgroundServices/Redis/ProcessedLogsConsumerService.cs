@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using LoQi.Application.Services.Log;
 using LoQi.Infrastructure;
-using LoQi.Infrastructure.Extensions;
 using LoQi.Infrastructure.Models;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
@@ -31,14 +30,19 @@ public class ProcessedLogsConsumerService : BackgroundService
     private readonly ConcurrentQueue<LogBatchItem> _messageBatch = new();
     private readonly SemaphoreSlim _batchSemaphore = new(1, 1);
 
+    private readonly IRedisStreamService _redisStreamService;
+
     public ProcessedLogsConsumerService(
         IServiceProvider serviceProvider,
         ILogger<ProcessedLogsConsumerService> logger,
-        IOptions<RedisStreamConfig> config, ILogParserService logParserService)
+        IOptions<RedisStreamConfig> config, ILogParserService logParserService,
+        IRedisStreamService redisStreamService
+    )
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
         _logParserService = logParserService;
+        _redisStreamService = redisStreamService;
         _config = config.Value;
         _consumerName = $"processed-consumer-{Environment.MachineName}-{Guid.NewGuid():N}";
     }
@@ -102,11 +106,8 @@ public class ProcessedLogsConsumerService : BackgroundService
         {
             try
             {
-                using var scope = _serviceProvider.CreateScope();
-                var redisStreamService = scope.ServiceProvider.GetRequiredService<IRedisStreamService>();
-
                 //  Redis'ten mesajları oku
-                var messages = await redisStreamService.ReadMessagesAsync(
+                var messages = await _redisStreamService.ReadMessagesAsync(
                     "processed-logs",
                     _consumerName,
                     _config.ConsumerGroups["processed-logs"].BatchSize,
@@ -192,7 +193,6 @@ public class ProcessedLogsConsumerService : BackgroundService
         }
     }
 
-
     /// <summary>
     /// Process a batch of messages
     /// </summary>
@@ -200,25 +200,27 @@ public class ProcessedLogsConsumerService : BackgroundService
     {
         try
         {
-            using var scope = _serviceProvider.CreateScope();
-            var redisStreamService = scope.ServiceProvider.GetRequiredService<IRedisStreamService>();
-            var logService = scope.ServiceProvider.GetRequiredService<ILogService>();
+            
 
             var logMessages = batchItems.Select(item => item.Message).ToList();
             var messageIds = batchItems.Select(item => item.MessageId).ToArray();
 
-            _logger.LogInformation("Processing batch of {Count} messages (triggered by: {Trigger})", batchItems.Count, trigger);
-            
+            _logger.LogInformation("Processing batch of {Count} messages (triggered by: {Trigger})", batchItems.Count,
+                trigger);
+
             var rawLogs = logMessages.Select(x => x.OriginalData).ToList();
             var logs = await _logParserService.ConvertToLogEntryAsync(rawLogs);
 
+            using var scope = _serviceProvider.CreateScope();
+            var logService = scope.ServiceProvider.GetRequiredService<ILogService>();
+            
             // Bulk insert to SQLite
             var isSuccessful = await logService.AddLogsBatchAsync(logs);
 
             if (isSuccessful)
             {
                 //  Acknowledge all messages in batch
-                await redisStreamService.AcknowledgeMessagesAsync("processed-logs", messageIds);
+                await _redisStreamService.AcknowledgeMessagesAsync("processed-logs", messageIds);
                 _logger.LogInformation("Successfully processed batch of {Count} messages", batchItems.Count);
             }
         }

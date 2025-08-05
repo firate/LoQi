@@ -4,6 +4,7 @@ using LoQi.API.BackgroundServices.Protocols;
 using LoQi.API.BackgroundServices.Redis;
 using LoQi.API.Validators;
 using LoQi.Application.Services.Log;
+using LoQi.Infrastructure;
 using LoQi.Infrastructure.Extensions;
 using LoQi.Persistence;
 using Microsoft.AspNetCore.Mvc;
@@ -72,16 +73,16 @@ builder.Services.AddSignalR();
 builder.Services.AddHealthChecks();
 
 builder.Services.AddPersistenceServices(builder.Configuration);
-builder.Services.AddScoped<ILogParserService, LogParserService>();
-
 builder.Services.AddScoped<ILogService, LogService>();
+builder.Services.AddSingleton<ILogParserService, LogParserService>();
+
+builder.Services.AddRedisStream(builder.Configuration);
+
 
 // Background Services
-builder.Services.AddHostedService<UdpPackageListener>();
+builder.Services.AddHostedService<UdpPackageListenerService>();
 
-// Redis Stream Configuration
-builder.Services.AddRedisStream(builder.Configuration);
-        
+
 // Redis Stream Consumer Services
 builder.Services.AddHostedService<ProcessedLogsConsumerService>();
 
@@ -146,7 +147,22 @@ app.MapFallbackToFile("index.html");
 // Initialize Redis Stream consumer groups
 try
 {
-    await app.Services.InitializeRedisStreamAsync();
+    using var scope = app.Services.CreateScope();
+    var redisStreamService = scope.ServiceProvider.GetRequiredService<IRedisStreamService>();
+
+    // Create default consumer groups
+    var consumerGroups = new[]
+    {
+        "processed-logs", // Successfully parsed logs → SQLite
+        // "failed-logs",      // Parse failures → Error handling
+        // "retry-logs"        // Retryable errors → Retry logic
+    };
+
+    foreach (var group in consumerGroups)
+    {
+        await redisStreamService.CreateConsumerGroupAsync(group);
+    }
+
     app.Logger.LogInformation("Redis Stream consumer groups initialized successfully");
 }
 catch (Exception ex)

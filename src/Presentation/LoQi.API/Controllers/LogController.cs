@@ -112,7 +112,7 @@ public class LogController : BaseApiController
             data: log,
             error: null,
             errors: null,
-            pagination: null);
+            pagination: result?.PaginationInfo ?? PaginationInfo.Empty());
 
         return Ok(response);
     }
