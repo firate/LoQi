@@ -115,11 +115,10 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
+    app.UseCors("DevPolicy");
 }
 
 app.UseHttpsRedirection();
-
-app.UseCors("DevPolicy");
 
 app.MapHealthChecks("/health");
 
