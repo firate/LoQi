@@ -1,0 +1,23 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/src/">
+    <File Path="src/scratch.sql" />
+  </Folder>
+  <Folder Name="/src/Core/">
+    <Project Path="src/Core/LoQi.Application/LoQi.Application.csproj" />
+    <Project Path="src/Core/LoQi.Domain/LoQi.Domain.csproj" />
+  </Folder>
+  <Folder Name="/src/Infrastructure/">
+    <Project Path="src/Infrastructure/LoQi.Infrastructure/LoQi.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/Persistence/">
+    <Project Path="src/Persistence/LoQi.Persistence/LoQi.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/src/Presentation/">
+    <Project Path="src/Presentation/LoQi.API/LoQi.API.csproj" />
+  </Folder>
+</Solution>
