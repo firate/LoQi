@@ -84,7 +84,7 @@ builder.Services.AddHostedService<UdpPackageListenerService>();
 
 
 // Redis Stream Consumer Services
-builder.Services.AddHostedService<ProcessedLogsConsumerService>();
+builder.Services.AddHostedService<RawLogsConsumerService>();
 
 
 // TODO: later

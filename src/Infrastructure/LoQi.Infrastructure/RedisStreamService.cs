@@ -30,12 +30,9 @@ public class RedisStreamService : IRedisStreamService
     /// <summary>
     /// Add a log message to the stream after processing attempt
     /// </summary>
-    public async Task<string> AddLogMessageAsync(
+    public async Task<string> AddRawUdpMessageAsync(
         string originalData, 
-        LogProcessingStatus status, 
-        string? parsedData = null, 
-        string? errorInfo = null, 
-        int attempts = 1)
+        LogProcessingStatus status)
     {
         try
         {
@@ -44,29 +41,12 @@ public class RedisStreamService : IRedisStreamService
                 new("originalData", originalData),
                 new("status", status.ToString().ToLowerInvariant()),
                 new("timestamp", DateTimeOffset.UtcNow.ToUnixTimeSeconds()),
-                new("attempts", attempts)
             };
 
-            // Add optional fields
             var fieldList = fields.ToList();
-
-            if (!string.IsNullOrEmpty(parsedData))
-            {
-                fieldList.Add(new("parsedData", parsedData));
-            }
-
-
-            if (!string.IsNullOrEmpty(errorInfo))
-            {
-                fieldList.Add(new("errorInfo", errorInfo));
-            }
-                
-
+            
             var messageId = await _database.StreamAddAsync(_streamKey, fieldList.ToArray());
             
-            // _logger.LogTrace("Added message to stream {StreamKey} with ID {MessageId}, Status: {Status}", 
-            //     _streamKey, messageId, status);
-
             // Trim stream if it gets too large
             if (messageId.ToString().EndsWith("-0")) // First message in this millisecond, good time to trim
             {

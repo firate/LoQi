@@ -15,16 +15,10 @@ public interface IRedisStreamService
     /// </summary>
     /// <param name="originalData">Raw UDP/TCP message</param>
     /// <param name="status">Processing status: success, failed, retry</param>
-    /// <param name="parsedData">Parsed LogDto JSON (if successful)</param>
-    /// <param name="errorInfo">Error details (if failed)</param>
-    /// <param name="attempts">Retry attempt count</param>
     /// <returns>Stream entry ID</returns>
-    Task<string> AddLogMessageAsync(
+    Task<string> AddRawUdpMessageAsync(
         string originalData, 
-        LogProcessingStatus status, 
-        string? parsedData = null, 
-        string? errorInfo = null, 
-        int attempts = 1);
+        LogProcessingStatus status);
 
     /// <summary>
     /// Read messages from a specific consumer group

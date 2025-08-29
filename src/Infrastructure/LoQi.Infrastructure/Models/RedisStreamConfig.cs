@@ -16,7 +16,7 @@ public class RedisStreamConfig
     /// </summary>
     public Dictionary<string, ConsumerGroupConfig> ConsumerGroups { get; set; } = new()
     {
-        ["processed-logs"] = new() { BatchSize = 500, BlockTimeMs = 1000 },
+        ["raw-logs"] = new() { BatchSize = 500, BlockTimeMs = 1000 },
         ["failed-logs"] = new() { BatchSize = 50, BlockTimeMs = 5000 },
         ["retry-logs"] = new() { BatchSize = 100, BlockTimeMs = 2000 }
     };

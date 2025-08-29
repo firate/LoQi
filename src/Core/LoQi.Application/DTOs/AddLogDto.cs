@@ -6,4 +6,5 @@ public record AddLogDto
     public int LevelId { get; set; }
     public string Source { get; set; }
     public string CorrelationId { get; set; }
+    public string? RedisStreamId { get; set; }
 }

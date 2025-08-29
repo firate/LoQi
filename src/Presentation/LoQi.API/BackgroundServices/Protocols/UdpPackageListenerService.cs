@@ -16,13 +16,13 @@ public class UdpPackageListenerService : BackgroundService
     private readonly IConfiguration _configuration;
     private readonly IRedisStreamService _redisStreamService;
     private readonly int _port;
-    
+
     private readonly ILogParserService _logParserService;
 
     public UdpPackageListenerService(
-        ILogger<UdpPackageListenerService> logger, 
-        IRedisStreamService redisStreamService, 
-        IConfiguration configuration, 
+        ILogger<UdpPackageListenerService> logger,
+        IRedisStreamService redisStreamService,
+        IConfiguration configuration,
         ILogParserService logParserService)
     {
         _logger = logger;
@@ -62,24 +62,18 @@ public class UdpPackageListenerService : BackgroundService
                     var result = await _udpClient.ReceiveAsync(cancellationToken);
                     var message = Encoding.UTF8.GetString(result.Buffer);
 
-                    // if can be converted AddLogDto, it will add as a Success, but need to string. 
-                    var logEntry = await _logParserService.ConvertToLogEntryAsync(message);
-
-                    if (logEntry is not null)
+                    // if there is no string iterate to next udp message
+                    if (string.IsNullOrWhiteSpace(message))
                     {
-                        await _redisStreamService.AddLogMessageAsync(
-                            originalData: message,
-                            status: LogProcessingStatus.Success,
-                            parsedData: JsonSerializer.Serialize(logEntry));
-
-                        // iterate to next udp message
+                        _logger.LogInformation("No proper log string, udp package skipped!");
                         continue;
                     }
 
-                    await _redisStreamService.AddLogMessageAsync(
+                    await _redisStreamService.AddRawUdpMessageAsync(
                         originalData: message,
-                        status: LogProcessingStatus.Failed,
-                        parsedData: message);
+                        status: LogProcessingStatus.New);
+
+                    // iterate to next udp message
                 }
                 catch (OperationCanceledException ex)
                 {
@@ -103,7 +97,7 @@ public class UdpPackageListenerService : BackgroundService
             _logger.LogError(ex, "UDP listener crashed");
         }
     }
-    
+
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         if (!IsRunning) return;

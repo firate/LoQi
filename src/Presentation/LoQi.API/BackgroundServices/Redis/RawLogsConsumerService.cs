@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using LoQi.Application.DTOs;
 using LoQi.Application.Services.Log;
 using LoQi.Infrastructure;
 using LoQi.Infrastructure.Models;
@@ -11,10 +12,10 @@ namespace LoQi.API.BackgroundServices.Redis;
 /// Background service that processes successfully parsed logs from Redis Stream
 /// and performs optimized bulk inserts to SQLite database using batching strategy
 /// </summary>
-public class ProcessedLogsConsumerService : BackgroundService
+public class RawLogsConsumerService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<ProcessedLogsConsumerService> _logger;
+    private readonly ILogger<RawLogsConsumerService> _logger;
     private readonly RedisStreamConfig _config;
     private readonly string _consumerName;
 
@@ -22,9 +23,9 @@ public class ProcessedLogsConsumerService : BackgroundService
     private readonly ILogParserService _logParserService;
 
     //  Batching configuration
-    private const int MAX_BATCH_SIZE = 100; // 100 mesaj toplandığında flush
-    private const int FLUSH_INTERVAL_SECONDS = 10; // 10 saniyede bir flush
-    private const int CONSUMER_DELAY_MS = 1000; // Consumer polling delay
+    private const int MaxBatchSize = 100; // 100 mesaj toplandığında flush
+    private const int FlushIntervalSeconds = 10; // 10 saniyede bir flush
+    private const int ConsumerDelayMs = 1000; // Consumer polling delay
 
     //  Batch storage
     private readonly ConcurrentQueue<LogBatchItem> _messageBatch = new();
@@ -32,10 +33,11 @@ public class ProcessedLogsConsumerService : BackgroundService
 
     private readonly IRedisStreamService _redisStreamService;
 
-    public ProcessedLogsConsumerService(
+    public RawLogsConsumerService(
         IServiceProvider serviceProvider,
-        ILogger<ProcessedLogsConsumerService> logger,
-        IOptions<RedisStreamConfig> config, ILogParserService logParserService,
+        ILogger<RawLogsConsumerService> logger,
+        IOptions<RedisStreamConfig> config,
+        ILogParserService logParserService,
         IRedisStreamService redisStreamService
     )
     {
@@ -44,14 +46,13 @@ public class ProcessedLogsConsumerService : BackgroundService
         _logParserService = logParserService;
         _redisStreamService = redisStreamService;
         _config = config.Value;
-        _consumerName = $"processed-consumer-{Environment.MachineName}-{Guid.NewGuid():N}";
+        _consumerName = $"rawlogs-consumer-{Environment.MachineName}-{Guid.NewGuid():N}";
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("ProcessedLogsConsumerService started with consumer: {ConsumerName}, " +
-                               "MaxBatch: {MaxBatch}, FlushInterval: {FlushInterval}s",
-            _consumerName, MAX_BATCH_SIZE, FLUSH_INTERVAL_SECONDS);
+        _logger.LogInformation(
+            $"{nameof(RawLogsConsumerService)} started with consumer: {_consumerName}, MaxBatch: {{MaxBatchSize}}, FlushInterval: {{FlushIntervalSeconds}}s");
 
         //  Timer-based flush task
         var flushTask = StartPeriodicFlushAsync(stoppingToken);
@@ -82,7 +83,7 @@ public class ProcessedLogsConsumerService : BackgroundService
     /// </summary>
     private async Task StartPeriodicFlushAsync(CancellationToken cancellationToken)
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(FLUSH_INTERVAL_SECONDS));
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(FlushIntervalSeconds));
 
         try
         {
@@ -125,7 +126,7 @@ public class ProcessedLogsConsumerService : BackgroundService
                 }
 
                 // Mesaj yoksa kısa bir süre bekle
-                await Task.Delay(CONSUMER_DELAY_MS, cancellationToken);
+                await Task.Delay(ConsumerDelayMs, cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -158,7 +159,7 @@ public class ProcessedLogsConsumerService : BackgroundService
         }
 
         //  Size-based flush check (100 mesaj doldu mu?)
-        if (_messageBatch.Count >= MAX_BATCH_SIZE)
+        if (_messageBatch.Count >= MaxBatchSize)
         {
             await FlushBatchIfNotEmpty($"Size({_messageBatch.Count})");
         }
@@ -194,41 +195,70 @@ public class ProcessedLogsConsumerService : BackgroundService
     }
 
     /// <summary>
-    /// Process a batch of messages
+    /// Process a batch of messages - Final simplified version
     /// </summary>
     private async Task ProcessBatch(List<LogBatchItem> batchItems, string trigger)
     {
         try
         {
-            
+            _logger.LogInformation("Processing batch of {Count} messages (triggered by: {Trigger})",
+                batchItems.Count, trigger);
 
-            var logMessages = batchItems.Select(item => item.Message).ToList();
+            // Convert to RawLogDto and sort by Redis Stream ID (chronological order)
+            var rawLogDtos = batchItems
+                .Select(item => new RawLogDto(
+                    OriginalData: item.Message.OriginalData,
+                    RedisStreamId: item.Message.Id.ToString()
+                ))
+                .OrderBy(dto => dto.RedisStreamId) // Redis Stream ID is chronologically ordered
+                .ToList();
+
+            if (rawLogDtos.Count == 0)
+            {
+                _logger.LogInformation("No messages to process!");
+                return;
+            }
+
+            // Parse raw log DTOs to LogEntry objects
+            var logs = await _logParserService.ConvertToLogEntryAsync(rawLogDtos);
+
+            // MessageIds for acknowledgment
             var messageIds = batchItems.Select(item => item.MessageId).ToArray();
 
-            _logger.LogInformation("Processing batch of {Count} messages (triggered by: {Trigger})", batchItems.Count,
-                trigger);
+            if (logs?.Count == 0)
+            {
+                _logger.LogWarning("No valid logs parsed from {Count} raw messages", rawLogDtos.Count);
 
-            var rawLogs = logMessages.Select(x => x.OriginalData).ToList();
-            var logs = await _logParserService.ConvertToLogEntryAsync(rawLogs);
+                // ACK poison messages to prevent infinite retry
+                await _redisStreamService.AcknowledgeMessagesAsync("raw-logs", messageIds);
+                return;
+            }
 
             using var scope = _serviceProvider.CreateScope();
             var logService = scope.ServiceProvider.GetRequiredService<ILogService>();
-            
-            // Bulk insert to SQLite
+
+            // Bulk insert to SQLite with RedisStreamId
             var isSuccessful = await logService.AddLogsBatchAsync(logs);
 
             if (isSuccessful)
             {
-                //  Acknowledge all messages in batch
-                await _redisStreamService.AcknowledgeMessagesAsync("processed-logs", messageIds);
-                _logger.LogInformation("Successfully processed batch of {Count} messages", batchItems.Count);
+                // Acknowledge all messages in batch
+                await _redisStreamService.AcknowledgeMessagesAsync("raw-logs", messageIds);
+                _logger.LogInformation(
+                    "Successfully processed batch: {TotalMessages} messages → {ValidLogs} logs inserted",
+                    batchItems.Count, logs?.Count ?? 0);
+            }
+            else
+            {
+                _logger.LogError("Failed to insert batch of {Count} logs to database", logs?.Count ?? 0);
+                throw new Exception("Database bulk insert failed");
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing batch of {Count} messages", batchItems.Count);
 
-            //  Error durumunda mesajları geri koy (optional)
+            // Re-queue for retry (with exponential backoff ideally)
             foreach (var item in batchItems)
             {
                 _messageBatch.Enqueue(item);

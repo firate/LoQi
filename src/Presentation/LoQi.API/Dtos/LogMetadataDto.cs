@@ -9,6 +9,10 @@ public record LogMetadataDto
 }
 
 public record LogLevelDto(int Value, string Label, string Color);
+
 public record OrderByOptionDto(string Value, string Label);
+
 public record PageSizeOptionDto(int Value, string Label);
+
 public record SortOrderOptionDto(string Value, string Label, bool IsDescending);
+

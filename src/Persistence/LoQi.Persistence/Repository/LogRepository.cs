@@ -42,7 +42,6 @@ public class LogRepository : ILogRepository
         var uniqueId = logEntry.UniqueId;
         var correlationId = logEntry.CorrelationId;
         var timestamp = logEntry.TimestampUtc;
-        var offsetminutes = logEntry.OffsetMinutes;
         var level = logEntry.LevelId;
         var message = logEntry.Message;
         var source = logEntry.Source;
@@ -60,7 +59,6 @@ public class LogRepository : ILogRepository
                 uniqueId,
                 correlationId,
                 timestamp,
-                offsetminutes,
                 level,
                 message,
                 source
@@ -90,8 +88,8 @@ public class LogRepository : ILogRepository
         try
         {
             const string sqlInsert = """
-                                     insert into logs (unique_id, correlation_id, timestamp, offset_minutes, level, message, source)
-                                     values (@uniqueId, @correlationId, @timestamp, @offsetminutes, @level, @message, @source)
+                                     insert into logs (unique_id, correlation_id, timestamp, redis_stream_id, offset_minutes, level, message, source)
+                                     values (@uniqueId, @correlationId, @timestamp, @redis_stream_id, @offsetminutes, @level, @message, @source)
                                      """;
 
             // Prepare parameter objects for batch execution
@@ -100,7 +98,6 @@ public class LogRepository : ILogRepository
                 uniqueId = logEntry.UniqueId,
                 correlationId = logEntry.CorrelationId,
                 timestamp = logEntry.TimestampUtc,
-                offsetminutes = logEntry.OffsetMinutes,
                 level = logEntry.LevelId,
                 message = logEntry.Message,
                 source = logEntry.Source
@@ -237,27 +234,14 @@ public class LogRepository : ILogRepository
 
             var message = rawData?.message?.ToString() ?? string.Empty;
             var source = rawData?.source?.ToString() ?? "Unknown";
-
-            DateTimeOffset dateTimeOffset;
-            try
-            {
-                dateTimeOffset = DateTimeOffset.FromUnixTimeSeconds(timestamp)
-                    .ToOffset(TimeSpan.FromMinutes(offsetMinutes));
-            }
-            catch (ArgumentOutOfRangeException)
-            {
-                // Invalid timestamp or offset - use current time
-                dateTimeOffset = DateTimeOffset.Now;
-            }
-
+            
             return new LogEntry
             {
                 Id = id,
                 UniqueId = uniqueId,
                 CorrelationId = correlationId,
                 Message = message,
-                Timestamp = dateTimeOffset,
-                OffsetMinutes = offsetMinutes,
+                Timestamp = DateTimeOffset.UtcNow,
                 Source = source,
                 LevelId = level
             };
@@ -328,7 +312,6 @@ public class LogRepository : ILogRepository
                     CorrelationId = correlationId,
                     Message = message,
                     Timestamp = timestamp,
-                    OffsetMinutes = offsetMinutes,
                     Source = source,
                     LevelId = levelId
                 };
