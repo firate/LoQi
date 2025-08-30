@@ -1,7 +1,5 @@
 using System.Net.Sockets;
 using System.Text;
-using System.Text.Json;
-using LoQi.Application.Services.Log;
 using LoQi.Infrastructure;
 using LoQi.Infrastructure.Models;
 
@@ -17,18 +15,14 @@ public class UdpPackageListenerService : BackgroundService
     private readonly IRedisStreamService _redisStreamService;
     private readonly int _port;
 
-    private readonly ILogParserService _logParserService;
-
     public UdpPackageListenerService(
         ILogger<UdpPackageListenerService> logger,
         IRedisStreamService redisStreamService,
-        IConfiguration configuration,
-        ILogParserService logParserService)
+        IConfiguration configuration)
     {
         _logger = logger;
         _redisStreamService = redisStreamService;
         _configuration = configuration;
-        _logParserService = logParserService;
         _port = _configuration.GetValue<int>("UdpListener:Port", 10080);
     }
 
@@ -72,8 +66,7 @@ public class UdpPackageListenerService : BackgroundService
                     await _redisStreamService.AddRawUdpMessageAsync(
                         originalData: message,
                         status: LogProcessingStatus.New);
-
-                    // iterate to next udp message
+                    
                 }
                 catch (OperationCanceledException ex)
                 {

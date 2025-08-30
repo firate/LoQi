@@ -109,10 +109,10 @@ public class RawLogsConsumerService : BackgroundService
             {
                 //  Redis'ten mesajları oku
                 var messages = await _redisStreamService.ReadMessagesAsync(
-                    "processed-logs",
+                    "raw-logs",
                     _consumerName,
-                    _config.ConsumerGroups["processed-logs"].BatchSize,
-                    _config.ConsumerGroups["processed-logs"].BlockTimeMs);
+                    _config.ConsumerGroups["raw-logs"].BatchSize,
+                    _config.ConsumerGroups["raw-logs"].BlockTimeMs);
 
                 if (messages.Length > 0)
                 {
