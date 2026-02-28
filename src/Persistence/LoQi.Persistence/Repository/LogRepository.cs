@@ -22,7 +22,6 @@ public class LogRepository : ILogRepository
                    correlation_id, 
                    message,
                    timestamp, 
-                   offset_minutes, 
                    source, 
                    level 
             FROM logs 
@@ -45,11 +44,12 @@ public class LogRepository : ILogRepository
         var level = logEntry.LevelId;
         var message = logEntry.Message;
         var source = logEntry.Source;
-
-        var sqlInsert = """
-                        insert into logs (unique_id, correlation_id, timestamp,offset_minutes, level, message, source )
-                        values(@uniqueId,@correlationId, @timestamp, @offsetminutes, @level, @message,@source )
-                        """;
+        var redisStreamId = logEntry.RedisStreamId;
+        
+        const string sqlInsert = """
+                                 insert into logs (unique_id, correlation_id, timestamp, redis_stream_id,  level, message, source)
+                                 values (@uniqueId, @correlationId, @timestamp, @redisStreamId,  @level, @message, @source)
+                                 """;
 
         var connection = _context.CreateConnection();
 
@@ -59,6 +59,7 @@ public class LogRepository : ILogRepository
                 uniqueId,
                 correlationId,
                 timestamp,
+                redisStreamId,
                 level,
                 message,
                 source
@@ -88,14 +89,15 @@ public class LogRepository : ILogRepository
         try
         {
             const string sqlInsert = """
-                                     insert into logs (unique_id, correlation_id, timestamp, redis_stream_id, offset_minutes, level, message, source)
-                                     values (@uniqueId, @correlationId, @timestamp, @redis_stream_id, @offsetminutes, @level, @message, @source)
+                                     insert into logs (unique_id, correlation_id, timestamp, redis_stream_id,  level, message, source)
+                                     values (@uniqueId, @correlationId, @timestamp, @redisStreamId,  @level, @message, @source)
                                      """;
 
             // Prepare parameter objects for batch execution
             var parameters = logEntries.Select(logEntry => new
             {
                 uniqueId = logEntry.UniqueId,
+                redisStreamId = logEntry.RedisStreamId,
                 correlationId = logEntry.CorrelationId,
                 timestamp = logEntry.TimestampUtc,
                 level = logEntry.LevelId,
@@ -116,7 +118,7 @@ public class LogRepository : ILogRepository
             transaction.Commit();
             return true;
         }
-        catch (Exception)
+        catch (Exception e)
         {
             try
             {
@@ -135,7 +137,8 @@ public class LogRepository : ILogRepository
 
     public async Task<PaginatedData<LogEntry>> SearchLogsAsync(string? searchText, DateTimeOffset startDate,
         DateTimeOffset endDate, int? levelId, string? source,
-        string? correlationId, int page, string? orderBy, int pageSize = 50, bool descending = true)
+        string? correlationId, int page, string? orderBy, int offSetInMinutes, int pageSize = 50,
+        bool descending = true)
     {
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 50;
@@ -146,6 +149,9 @@ public class LogRepository : ILogRepository
 
         var whereConditions = new List<string>();
         var parameters = new DynamicParameters();
+
+        startDate = startDate.AddMinutes(offSetInMinutes);
+        endDate = endDate.AddMinutes(offSetInMinutes);
 
         // Build where conditions (except searchText for FTS5)
         BuildWhereConditionsForFilters(startDate, endDate, levelId, source, correlationId, whereConditions, parameters);
@@ -170,14 +176,19 @@ public class LogRepository : ILogRepository
         await Task.WhenAll(countTask, rawDataTask);
 
         var totalCount = await countTask;
-        var rawLogs = (await rawDataTask).ToList();
-
-        if (rawLogs == null || rawLogs.Count <= 0)
+        if (totalCount == 0)
         {
             return PaginatedData<LogEntry>.Empty();
         }
 
-        var logs = MapTimestamps(rawLogs);
+        var rawLogs = (await rawDataTask).ToList();
+
+        if (rawLogs is null || rawLogs?.Count <= 0)
+        {
+            return PaginatedData<LogEntry>.Empty();
+        }
+
+        var logs = MapTimestamps(rawLogs, offSetInMinutes);
 
         if (logs?.Count <= 0)
         {
@@ -217,10 +228,10 @@ public class LogRepository : ILogRepository
                 timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds(); // Default to now
             }
 
-            if (!int.TryParse(rawData?.offset_minutes?.ToString(), out int offsetMinutes))
-            {
-                offsetMinutes = 0; // Default to UTC
-            }
+            // if (!int.TryParse(rawData?.offset_minutes?.ToString(), out int offsetMinutes))
+            // {
+            //     offsetMinutes = 0; // Default to UTC
+            // }
 
             if (!int.TryParse(rawData?.level?.ToString(), out int level))
             {
@@ -234,12 +245,14 @@ public class LogRepository : ILogRepository
 
             var message = rawData?.message?.ToString() ?? string.Empty;
             var source = rawData?.source?.ToString() ?? "Unknown";
-            
+            var redisStreamId = rawData?.redis_stream_id?.ToString() ?? string.Empty;
+
             return new LogEntry
             {
                 Id = id,
                 UniqueId = uniqueId,
                 CorrelationId = correlationId,
+                RedisStreamId = redisStreamId,
                 Message = message,
                 Timestamp = DateTimeOffset.UtcNow,
                 Source = source,
@@ -253,7 +266,7 @@ public class LogRepository : ILogRepository
         }
     }
 
-    private static List<LogEntry> MapTimestamps(IEnumerable<dynamic> rawResults)
+    private static List<LogEntry> MapTimestamps(IEnumerable<dynamic> rawResults, int offsetInMinutes)
     {
         if (rawResults is null)
         {
@@ -269,7 +282,7 @@ public class LogRepository : ILogRepository
                 //  Safe parsing with TryParse
                 if (!Guid.TryParse(rawData.UniqueId?.ToString(), out Guid uniqueId))
                 {
-                    continue; // Skip invalid entries
+                    continue;
                 }
 
                 Guid? correlationId = null;
@@ -284,25 +297,26 @@ public class LogRepository : ILogRepository
 
                 //  Safe numeric conversions with defaults
                 var timestampUtc = TryParseLong(rawData?.TimestampUtc) ?? DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                var offsetMinutes = TryParseInt(rawData?.OffsetMinutes) ?? 0;
+
                 var id = TryParseLong(rawData?.Id) ?? 0;
                 var levelId = TryParseInt(rawData?.LevelId) ?? 2; // Default to Information
 
                 //  Safe string conversions
                 var message = rawData?.Message?.ToString() ?? string.Empty;
                 var source = rawData?.Source?.ToString() ?? "Unknown";
+                var redisStreamId = rawData?.redis_stream_id?.ToString() ?? string.Empty;
 
                 //  Safe DateTimeOffset creation with fallback
                 DateTimeOffset timestamp;
                 try
                 {
                     timestamp = DateTimeOffset.FromUnixTimeSeconds(timestampUtc)
-                        .ToOffset(TimeSpan.FromMinutes(offsetMinutes));
+                        .ToOffset(TimeSpan.FromMinutes(offsetInMinutes));
                 }
                 catch (ArgumentOutOfRangeException e)
                 {
                     // Invalid timestamp/offset - use current time with specified offset
-                    timestamp = DateTimeOffset.Now.ToOffset(TimeSpan.FromMinutes(offsetMinutes));
+                    timestamp = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromMinutes(offsetInMinutes));
                 }
 
                 var logEntry = new LogEntry
@@ -310,6 +324,7 @@ public class LogRepository : ILogRepository
                     Id = id,
                     UniqueId = uniqueId,
                     CorrelationId = correlationId,
+                    RedisStreamId = redisStreamId,
                     Message = message,
                     Timestamp = timestamp,
                     Source = source,
@@ -473,7 +488,6 @@ public class LogRepository : ILogRepository
                    l.correlation_id as CorrelationId,
                    {messageSelectClause},
                    l.timestamp as TimestampUtc,
-                   l.offset_minutes as OffsetMinutes, 
                    l.source as Source, 
                    l.level as LevelId
             {baseJoin}
@@ -512,7 +526,6 @@ public class LogRepository : ILogRepository
                    correlation_id as CorrelationId, 
                    {messageSelectClause},
                    timestamp as TimestampUtc, 
-                   offset_minutes as OffsetMinutes, 
                    source as Source, 
                    level as LevelId 
             FROM logs l 
