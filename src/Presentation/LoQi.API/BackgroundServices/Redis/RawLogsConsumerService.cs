@@ -12,15 +12,18 @@ namespace LoQi.API.BackgroundServices.Redis;
 /// Background service that processes successfully parsed logs from Redis Stream
 /// and performs optimized bulk inserts to SQLite database using batching strategy
 /// </summary>
-public class RawLogsConsumerService : BackgroundService
+public class RawLogsConsumerService(
+    IServiceProvider serviceProvider,
+    ILogger<RawLogsConsumerService> logger,
+    IOptions<RedisStreamConfig> config,
+    ILogParserService logParserService,
+    IRedisStreamService redisStreamService)
+    : BackgroundService
 {
-    private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<RawLogsConsumerService> _logger;
-    private readonly RedisStreamConfig _config;
-    private readonly string _consumerName;
+    private readonly RedisStreamConfig _config = config.Value;
+    private readonly string _consumerName = $"rawlogs-consumer-{Environment.MachineName}-{Guid.NewGuid():N}";
 
     // this service makes log parsing, constructor injection is enough
-    private readonly ILogParserService _logParserService;
 
     //  Batching configuration
     private const int MaxBatchSize = 100; // 100 mesaj toplandığında flush
@@ -31,27 +34,9 @@ public class RawLogsConsumerService : BackgroundService
     private readonly ConcurrentQueue<LogBatchItem> _messageBatch = new();
     private readonly SemaphoreSlim _batchSemaphore = new(1, 1);
 
-    private readonly IRedisStreamService _redisStreamService;
-
-    public RawLogsConsumerService(
-        IServiceProvider serviceProvider,
-        ILogger<RawLogsConsumerService> logger,
-        IOptions<RedisStreamConfig> config,
-        ILogParserService logParserService,
-        IRedisStreamService redisStreamService
-    )
-    {
-        _serviceProvider = serviceProvider;
-        _logger = logger;
-        _logParserService = logParserService;
-        _redisStreamService = redisStreamService;
-        _config = config.Value;
-        _consumerName = $"rawlogs-consumer-{Environment.MachineName}-{Guid.NewGuid():N}";
-    }
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation(
+        logger.LogInformation(
             $"{nameof(RawLogsConsumerService)} started with consumer: {_consumerName}, MaxBatch: {{MaxBatchSize}}, FlushInterval: {{FlushIntervalSeconds}}s");
 
         //  Timer-based flush task
@@ -67,14 +52,14 @@ public class RawLogsConsumerService : BackgroundService
         }
         catch (OperationCanceledException)
         {
-            _logger.LogInformation("ProcessedLogsConsumerService cancellation requested");
+            logger.LogInformation("ProcessedLogsConsumerService cancellation requested");
         }
         finally
         {
             //  Shutdown sırasında kalan mesajları flush et
             await FlushRemainingMessages();
             _batchSemaphore.Dispose();
-            _logger.LogInformation("ProcessedLogsConsumerService stopped");
+            logger.LogInformation("ProcessedLogsConsumerService stopped");
         }
     }
 
@@ -108,7 +93,7 @@ public class RawLogsConsumerService : BackgroundService
             try
             {
                 //  Redis'ten mesajları oku
-                var messages = await _redisStreamService.ReadMessagesAsync(
+                var messages = await redisStreamService.ReadMessagesAsync(
                     "raw-logs",
                     _consumerName,
                     _config.ConsumerGroups["raw-logs"].BatchSize,
@@ -119,7 +104,7 @@ public class RawLogsConsumerService : BackgroundService
                     //  Mesajları batch'e ekle
                     await AddMessagesToBatch(messages);
 
-                    _logger.LogDebug("Added {Count} messages to batch. Current batch size: {BatchSize}",
+                    logger.LogDebug("Added {Count} messages to batch. Current batch size: {BatchSize}",
                         messages.Length, _messageBatch.Count);
 
                     continue;
@@ -134,7 +119,7 @@ public class RawLogsConsumerService : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error reading messages from Redis stream");
+                logger.LogError(ex, "Error reading messages from Redis stream");
                 await Task.Delay(5000, cancellationToken);
             }
         }
@@ -201,7 +186,7 @@ public class RawLogsConsumerService : BackgroundService
     {
         try
         {
-            _logger.LogInformation("Processing batch of {Count} messages (triggered by: {Trigger})",
+            logger.LogInformation("Processing batch of {Count} messages (triggered by: {Trigger})",
                 batchItems.Count, trigger);
 
             // Convert to RawLogDto and sort by Redis Stream ID (chronological order)
@@ -215,26 +200,26 @@ public class RawLogsConsumerService : BackgroundService
 
             if (rawLogDtos.Count == 0)
             {
-                _logger.LogInformation("No messages to process!");
+                logger.LogInformation("No messages to process!");
                 return;
             }
 
             // Parse raw log DTOs to LogEntry objects
-            var logs = await _logParserService.ConvertToLogEntryAsync(rawLogDtos);
+            var logs = await logParserService.ConvertToLogEntryAsync(rawLogDtos);
 
             // MessageIds for acknowledgment
             var messageIds = batchItems.Select(item => item.MessageId).ToArray();
 
-            if (logs?.Count == 0)
+            if (logs != null && logs?.Count == 0)
             {
-                _logger.LogWarning("No valid logs parsed from {Count} raw messages", rawLogDtos.Count);
+                logger.LogWarning("No valid logs parsed from {Count} raw messages", rawLogDtos.Count);
 
                 // ACK poison messages to prevent infinite retry
-                await _redisStreamService.AcknowledgeMessagesAsync("raw-logs", messageIds);
+                await redisStreamService.AcknowledgeMessagesAsync("raw-logs", messageIds);
                 return;
             }
 
-            using var scope = _serviceProvider.CreateScope();
+            using var scope = serviceProvider.CreateScope();
             var logService = scope.ServiceProvider.GetRequiredService<ILogService>();
 
             // Bulk insert to SQLite with RedisStreamId
@@ -243,20 +228,20 @@ public class RawLogsConsumerService : BackgroundService
             if (isSuccessful)
             {
                 // Acknowledge all messages in batch
-                await _redisStreamService.AcknowledgeMessagesAsync("raw-logs", messageIds);
-                _logger.LogInformation(
+                await redisStreamService.AcknowledgeMessagesAsync("raw-logs", messageIds);
+                logger.LogInformation(
                     "Successfully processed batch: {TotalMessages} messages → {ValidLogs} logs inserted",
                     batchItems.Count, logs?.Count ?? 0);
             }
             else
             {
-                _logger.LogError("Failed to insert batch of {Count} logs to database", logs?.Count ?? 0);
+                logger.LogError("Failed to insert batch of {Count} logs to database", logs?.Count ?? 0);
                 throw new Exception("Database bulk insert failed");
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing batch of {Count} messages", batchItems.Count);
+            logger.LogError(ex, "Error processing batch of {Count} messages", batchItems.Count);
 
             // Re-queue for retry (with exponential backoff ideally)
             foreach (var item in batchItems)
@@ -275,7 +260,7 @@ public class RawLogsConsumerService : BackgroundService
     {
         if (!_messageBatch.IsEmpty)
         {
-            _logger.LogInformation("Flushing {Count} remaining messages during shutdown", _messageBatch.Count);
+            logger.LogInformation("Flushing {Count} remaining messages during shutdown", _messageBatch.Count);
             await FlushBatchIfNotEmpty("Shutdown");
         }
     }

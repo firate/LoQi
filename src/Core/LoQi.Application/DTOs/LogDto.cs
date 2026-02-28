@@ -10,5 +10,3 @@ public record LogDto
     public int LevelId { get; set; }
     public DateTimeOffset Date { get; set; }
 }
-
-public record RawLogDto(string OriginalData, string RedisStreamId);

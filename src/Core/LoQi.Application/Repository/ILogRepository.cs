@@ -10,6 +10,6 @@ public interface ILogRepository
     Task<bool> AddBatchAsync(IReadOnlyList<LogEntry> logEntries);
     Task<PaginatedData<LogEntry>> SearchLogsAsync(string? searchText, DateTimeOffset startDate, DateTimeOffset endDate,
         int? levelId, string? source,
-        string? correlationId, int page, string? orderBy, int pageSize = 50, bool descending = true);
+        string? correlationId, int page, string? orderBy, int offSetInMinutes = 0, int pageSize = 50, bool descending = true);
     
 }

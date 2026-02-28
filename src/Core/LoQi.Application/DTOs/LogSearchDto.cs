@@ -10,6 +10,7 @@ public class LogSearchDto
     public int? LevelId { get; set; }
     public string? Source { get; set; }
     public string? CorrelationId { get; set; }
+    public int OffsetInMinutes { get; set; } = 0;
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 50;
     public string OrderBy { get; set; } = "timestamp"; // timestamp, level, source
