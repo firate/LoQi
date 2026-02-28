@@ -111,12 +111,12 @@ var app = builder.Build();
 app.UseSerilogRequestLogging();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
+// if (app.Environment.IsDevelopment())
+// {
     app.MapOpenApi();
     app.MapScalarApiReference();
     app.UseCors("DevPolicy");
-}
+//}
 
 app.UseHttpsRedirection();
 
