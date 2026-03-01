@@ -3,17 +3,10 @@ using LoQi.Application.Persistence;
 
 namespace LoQi.Persistence;
 
-public class DataContext
+public class DataContext(IDbConnectionFactory connectionFactory)
 {
-    private readonly IDbConnectionFactory _connectionFactory;
-
-    public DataContext(IDbConnectionFactory connectionFactory)
-    {
-        _connectionFactory = connectionFactory;
-    }
-
     public IDbConnection CreateConnection()
     {
-        return _connectionFactory.GetConnection();
+        return connectionFactory.GetConnection();
     }
 }

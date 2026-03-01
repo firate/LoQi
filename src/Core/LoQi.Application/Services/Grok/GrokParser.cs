@@ -4,21 +4,16 @@ namespace LoQi.Application.Services.Grok;
 
 public class GrokParser
 {
-    private readonly Dictionary<string, string> _patterns;
-
-    public GrokParser()
+    private readonly Dictionary<string, string> _patterns = new()
     {
-        _patterns = new Dictionary<string, string>
-        {
-            ["IP"] = @"\d+\.\d+\.\d+\.\d+",
-            ["WORD"] = @"\w+",
-            ["INT"] = @"\d+",
-            ["TIMESTAMP"] = @"\d{2}/\w{3}/\d{4}:\d{2}:\d{2}:\d{2} [+-]\d{4}",
-            ["PATH"] = @"/[^\s]*",
-            ["LOGLEVEL"] = @"(DEBUG|INFO|WARN|ERROR|FATAL)",
-            ["GREEDYDATA"] = @".*"
-        };
-    }
+        ["IP"] = @"\d+\.\d+\.\d+\.\d+",
+        ["WORD"] = @"\w+",
+        ["INT"] = @"\d+",
+        ["TIMESTAMP"] = @"\d{2}/\w{3}/\d{4}:\d{2}:\d{2}:\d{2} [+-]\d{4}",
+        ["PATH"] = @"/[^\s]*",
+        ["LOGLEVEL"] = @"(DEBUG|INFO|WARN|ERROR|FATAL)",
+        ["GREEDYDATA"] = @".*"
+    };
 
     public Dictionary<string, string> Parse(string grokPattern, string logLine)
     {

@@ -5,17 +5,10 @@ using Microsoft.Extensions.Configuration;
 
 namespace LoQi.Persistence;
 
-public class SqliteConnectionFactory : IDbConnectionFactory
+public class SqliteConnectionFactory(IConfiguration configuration) : IDbConnectionFactory
 {
-    private readonly IConfiguration _configuration;
-
-    public SqliteConnectionFactory(IConfiguration configuration)
-    {
-        _configuration = configuration;
-    }
-
     public IDbConnection GetConnection()
     {
-        return new SqliteConnection(_configuration.GetConnectionString("DefaultConnection"));
+        return new SqliteConnection(configuration.GetConnectionString("DefaultConnection"));
     }
 }

@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using LoQi.Application.DTOs;
-using LoQi.Application.Services.Log;
+using LoQi.Application.Services.LogService;
 using LoQi.Infrastructure;
 using LoQi.Infrastructure.Models;
 using Microsoft.Extensions.Options;
@@ -210,7 +210,7 @@ public class RawLogsConsumerService(
             // MessageIds for acknowledgment
             var messageIds = batchItems.Select(item => item.MessageId).ToArray();
 
-            if (logs != null && logs?.Count == 0)
+            if (logs.Count == 0)
             {
                 logger.LogWarning("No valid logs parsed from {Count} raw messages", rawLogDtos.Count);
 

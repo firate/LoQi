@@ -18,7 +18,7 @@ public record PerformanceMetricsDto
     /// <summary>
     /// Database size in MB
     /// </summary>
-    public double DatabaseSizeMB { get; init; }
+    public double DatabaseSizeMb { get; init; }
 
     /// <summary>
     /// Redis stream length

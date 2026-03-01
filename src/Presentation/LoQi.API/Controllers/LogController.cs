@@ -4,7 +4,7 @@ using LoQi.API.Dtos;
 using LoQi.API.Models;
 using LoQi.Application.Common;
 using LoQi.Application.DTOs;
-using LoQi.Application.Services.Log;
+using LoQi.Application.Services.LogService;
 
 namespace LoQi.API.Controllers;
 
