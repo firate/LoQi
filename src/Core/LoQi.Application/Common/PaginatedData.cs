@@ -2,7 +2,7 @@ namespace LoQi.Application.Common;
 
 public record PaginatedData<T>
 {
-    public List<T> Items { get; set; } = [];
+    public List<T> Items { get; init; } = [];
 
     public PaginationInfo PaginationInfo { get; set; }
     

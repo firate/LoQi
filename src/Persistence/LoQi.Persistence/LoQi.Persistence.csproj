@@ -16,4 +16,9 @@
       <ProjectReference Include="..\..\Core\LoQi.Domain\LoQi.Domain.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <EmbeddedResource Include="..\..\..\scripts\schema-creation.sql"
+                          LogicalName="schema-creation.sql" />
+    </ItemGroup>
+    
 </Project>

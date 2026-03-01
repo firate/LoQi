@@ -3,7 +3,7 @@ using FluentValidation.AspNetCore;
 using LoQi.API.BackgroundServices.Protocols;
 using LoQi.API.BackgroundServices.Redis;
 using LoQi.API.Validators;
-using LoQi.Application.Services.Log;
+using LoQi.Application.Services.LogService;
 using LoQi.Infrastructure;
 using LoQi.Infrastructure.Extensions;
 using LoQi.Persistence;
@@ -108,6 +108,13 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// 
+if (app.Environment.IsDevelopment())
+{
+    var dbInitializer = app.Services.GetRequiredService<DatabaseInitializer>();
+    await dbInitializer.InitializeAsync();
+}
+
 app.UseSerilogRequestLogging();
 
 // Configure the HTTP request pipeline.
@@ -153,8 +160,8 @@ try
     var consumerGroups = new[]
     {
         "processed-logs", // Successfully parsed logs → SQLite
-        // "failed-logs",      // Parse failures → Error handling
-        // "retry-logs"        // Retryable errors → Retry logic
+        "failed-logs",      // Parse failures → Error handling
+        "retry-logs"        // Retryable errors → Retry logic
     };
 
     foreach (var group in consumerGroups)
