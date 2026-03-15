@@ -73,6 +73,7 @@ services:
       - LoQi__Redis__Stream__MaxStreamLength=5000000
       - LoQi__Redis__Stream__ConsumerGroups__raw-logs__BatchSize=1000
       - LoQi__Redis__Stream__ConsumerGroups__raw-logs__BlockTimeMs=500
+      - LoQi__Redis__Stream__ConsumerId=loqi-instance-1
     volumes:
       - loqi_data:/app/data
       - loqi_logs:/app/logs
