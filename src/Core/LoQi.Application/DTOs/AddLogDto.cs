@@ -2,9 +2,9 @@ namespace LoQi.Application.DTOs;
 
 public record AddLogDto
 {
-    public string Message { get; set; }
-    public int LevelId { get; set; }
-    public string Source { get; set; }
-    public string CorrelationId { get; set; }
-    public string? RedisStreamId { get; set; }
+    public string Message { get; init; } = string.Empty;
+    public int LevelId { get; init; }
+    public string Source { get; init; } = string.Empty;
+    public string CorrelationId { get; init; } = string.Empty;
+    public string? RedisStreamId { get; init; }
 }

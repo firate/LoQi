@@ -8,10 +8,9 @@ public class LogEntry
     public Guid UniqueId { get; set; } = Guid.NewGuid();
     public Guid? CorrelationId { get; set; }
     public string? RedisStreamId { get; set; }
-    public string Message { get; set; }
+    public string Message { get; set; } = string.Empty;
     public DateTimeOffset Timestamp { get; set; }
-    //public int OffsetMinutes { get; set; }
-    public string Source { get; set; }
+    public string Source { get; set; } = string.Empty;
     public LogLevel Level { get; set; }
 
     public int LevelId
@@ -19,6 +18,6 @@ public class LogEntry
         get => (int)Level;
         set => Level = (LogLevel)value;
     }
+
     public long TimestampUtc => Timestamp.ToUnixTimeSeconds();
 }
-
