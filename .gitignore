@@ -527,3 +527,9 @@ next-env.d.ts
 
 
 **/out/
+
+# Next.js
+src/Presentation/loqi-web/.next/
+
+# Claude worktrees
+.claude/worktrees/
