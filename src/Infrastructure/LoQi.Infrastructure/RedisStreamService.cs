@@ -1,5 +1,4 @@
 using LoQi.Infrastructure.Models;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
@@ -8,24 +7,13 @@ namespace LoQi.Infrastructure;
 /// <summary>
 /// Redis Stream service implementation for LoQi log processing
 /// </summary>
-public class RedisStreamService : IRedisStreamService
+public class RedisStreamService(
+    IConnectionMultiplexer redis,
+    IOptions<RedisStreamConfig> config
+) : IRedisStreamService
 {
-    private readonly IDatabase _database;
-    // private readonly ILogger<RedisStreamService> _logger;
-    private readonly RedisStreamConfig _config;
-    private readonly string _streamKey;
-
-    public RedisStreamService(
-        IConnectionMultiplexer redis,
-        IOptions<RedisStreamConfig> config
-        // ,ILogger<RedisStreamService> logger
-        )
-    {
-        _database = redis.GetDatabase();
-        _config = config.Value;
-        // _logger = logger;
-        _streamKey = _config.StreamName;
-    }
+    private readonly IDatabase _database =redis.GetDatabase();
+    private readonly RedisStreamConfig _config = config.Value;
 
     /// <summary>
     /// Add a log message to the stream after processing attempt
@@ -45,7 +33,7 @@ public class RedisStreamService : IRedisStreamService
 
             var fieldList = fields.ToList();
             
-            var messageId = await _database.StreamAddAsync(_streamKey, fieldList.ToArray());
+            var messageId = await _database.StreamAddAsync(_config.StreamKey, fieldList.ToArray());
             
             // Trim stream if it gets too large
             if (messageId.ToString().EndsWith("-0")) // First message in this millisecond, good time to trim
@@ -57,7 +45,7 @@ public class RedisStreamService : IRedisStreamService
         }
         catch (Exception ex)
         {
-           // _logger.LogError(ex, "Failed to add message to Redis stream {StreamKey}", _streamKey);
+           // _logger.LogError(ex, "Failed to add message to Redis stream {StreamKey}", _config.StreamName);
             throw;
         }
     }
@@ -82,7 +70,7 @@ public class RedisStreamService : IRedisStreamService
             {
                 // Blocking read with timeout
                 var streamResults = await _database.StreamReadGroupAsync(
-                    new StreamPosition[] { new(_streamKey, ">") },
+                    new StreamPosition[] { new(_config.StreamKey, ">") },
                     consumerGroup,
                     consumerName,
                     countPerStream: batchSize,
@@ -94,7 +82,7 @@ public class RedisStreamService : IRedisStreamService
             {
                 // Non-blocking read
                 result = await _database.StreamReadGroupAsync(
-                    _streamKey,
+                    _config.StreamKey,
                     consumerGroup,
                     consumerName,
                     ">", // Only new messages
@@ -119,13 +107,15 @@ public class RedisStreamService : IRedisStreamService
     /// </summary>
     public async Task<long> AcknowledgeMessagesAsync(string consumerGroup, params string[] messageIds)
     {
-        if (messageIds == null || messageIds.Length == 0)
+        if (messageIds.Length == 0)
+        {
             return 0;
-
+        }
+        
         try
         {
             var redisValues = messageIds.Select(id => (RedisValue)id).ToArray();
-            var acknowledged = await _database.StreamAcknowledgeAsync(_streamKey, consumerGroup, redisValues);
+            var acknowledged = await _database.StreamAcknowledgeAsync(_config.StreamKey, consumerGroup, redisValues);
             
             // _logger.LogTrace("Acknowledged {Count} messages for consumer group {ConsumerGroup}", 
             //     acknowledged, consumerGroup);
@@ -146,9 +136,9 @@ public class RedisStreamService : IRedisStreamService
     {
         try
         {
-            await _database.StreamCreateConsumerGroupAsync(_streamKey, consumerGroup, startPosition, createStream: true);
+            await _database.StreamCreateConsumerGroupAsync(_config.StreamKey, consumerGroup, startPosition, createStream: true);
             // _logger.LogInformation("Created consumer group {ConsumerGroup} for stream {StreamKey}", 
-            //     consumerGroup, _streamKey);
+            //     consumerGroup, _config.StreamName);
             return true;
         }
         catch (RedisServerException ex) when (ex.Message.Contains("BUSYGROUP"))
@@ -171,7 +161,7 @@ public class RedisStreamService : IRedisStreamService
     {
         try
         {
-            var pending = await _database.StreamPendingAsync(_streamKey, consumerGroup);
+            var pending = await _database.StreamPendingAsync(_config.StreamKey, consumerGroup);
             return pending.PendingMessageCount;
         }
         catch (Exception ex)
@@ -189,14 +179,14 @@ public class RedisStreamService : IRedisStreamService
         try
         {
             var pendingInfo = await _database.StreamPendingMessagesAsync(
-                _streamKey, consumerGroup, 100, consumerName);
+                _config.StreamKey, consumerGroup, 100, consumerName);
 
             if (pendingInfo.Length == 0)
                 return Array.Empty<StreamEntry>();
 
             var messageIds = pendingInfo.Select(p => p.MessageId).ToArray();
             var claimedMessages = await _database.StreamClaimAsync(
-                _streamKey, consumerGroup, consumerName, 0, messageIds);
+                _config.StreamKey, consumerGroup, consumerName, 0, messageIds);
 
             // _logger.LogInformation("Retrieved {Count} pending messages for consumer {ConsumerName}", 
             //     claimedMessages.Length, consumerName);
@@ -222,7 +212,7 @@ public class RedisStreamService : IRedisStreamService
         {
             
             //  Task<StreamPendingMessageInfo[]> StreamPendingMessagesAsync(RedisKey key, RedisValue groupName, int count, RedisValue consumerName, RedisValue? minId = null, RedisValue? maxId = null, CommandFlags flags = CommandFlags.None);
-            var pendingInfo = await _database.StreamPendingMessagesAsync(_streamKey, consumerGroup, 100,new RedisValue());
+            var pendingInfo = await _database.StreamPendingMessagesAsync(_config.StreamKey, consumerGroup, 100,new RedisValue());
 
             var oldMessages = pendingInfo
                 .Where(p => p.IdleTimeInMilliseconds > minIdleTimeMs)
@@ -233,7 +223,7 @@ public class RedisStreamService : IRedisStreamService
                 return Array.Empty<StreamEntry>();
 
             var claimedMessages = await _database.StreamClaimAsync(
-                _streamKey, consumerGroup, newConsumerName, minIdleTimeMs, oldMessages);
+                _config.StreamKey, consumerGroup, newConsumerName, minIdleTimeMs, oldMessages);
 
             // _logger.LogInformation("Claimed {Count} messages from dead consumers for {ConsumerName}", 
             //     claimedMessages.Length, newConsumerName);
@@ -254,19 +244,19 @@ public class RedisStreamService : IRedisStreamService
     {
         try
         {
-            var trimmed = await _database.StreamTrimAsync(_streamKey, maxLength, useApproximateMaxLength: true);
+            var trimmed = await _database.StreamTrimAsync(_config.StreamKey, maxLength, useApproximateMaxLength: true);
             
             if (trimmed > 0)
             {
                 // _logger.LogInformation("Trimmed {Count} messages from stream {StreamKey}, max length: {MaxLength}", 
-                //     trimmed, _streamKey, maxLength);
+                //     trimmed, _config.StreamKey, maxLength);
             }
 
             return trimmed;
         }
         catch (Exception ex)
         {
-            // _logger.LogError(ex, "Failed to trim stream {StreamKey}", _streamKey);
+            // _logger.LogError(ex, "Failed to trim stream {StreamKey}", _config.StreamKey);
             return 0;
         }
     }
@@ -278,11 +268,11 @@ public class RedisStreamService : IRedisStreamService
     {
         try
         {
-            return await _database.StreamInfoAsync(_streamKey);
+            return await _database.StreamInfoAsync(_config.StreamKey);
         }
         catch (Exception ex)
         {
-           // _logger.LogError(ex, "Failed to get stream info for {StreamKey}", _streamKey);
+           // _logger.LogError(ex, "Failed to get stream info for {StreamKey}", _config.StreamKey);
             throw;
         }
     }
@@ -298,14 +288,14 @@ public class RedisStreamService : IRedisStreamService
         try
         {
             var redisValues = messageIds.Select(id => (RedisValue)id).ToArray();
-            var deleted = await _database.StreamDeleteAsync(_streamKey, redisValues);
+            var deleted = await _database.StreamDeleteAsync(_config.StreamKey, redisValues);
             
-           // _logger.LogTrace("Deleted {Count} messages from stream {StreamKey}", deleted, _streamKey);
+           // _logger.LogTrace("Deleted {Count} messages from stream {StreamKey}", deleted, _config.StreamKey);
             return deleted;
         }
         catch (Exception ex)
         {
-            //_logger.LogError(ex, "Failed to delete messages from stream {StreamKey}", _streamKey);
+            //_logger.LogError(ex, "Failed to delete messages from stream {StreamKey}", _config.StreamKey);
             throw;
         }
     }
@@ -333,7 +323,7 @@ public class RedisStreamService : IRedisStreamService
     {
         try
         {
-            var streamInfo = await _database.StreamInfoAsync(_streamKey);
+            var streamInfo = await _database.StreamInfoAsync(_config.StreamKey);
             
             if (streamInfo.Length > _config.MaxStreamLength)
             {

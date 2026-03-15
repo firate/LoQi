@@ -5,7 +5,8 @@ namespace LoQi.Infrastructure.Models;
 /// </summary>
 public class RedisStreamConfig
 {
-    public string StreamName { get; set; } = "loqi:logs:stream";
+    public string StreamKey { get; set; } = "loqi:logs:stream";
+    public string ConsumerId { get; set; } = Environment.MachineName; 
     public long MaxStreamLength { get; set; } = 1_000_000;
     public int DefaultBatchSize { get; set; } = 100;
     public int DefaultBlockTimeMs { get; set; } = 1000;
