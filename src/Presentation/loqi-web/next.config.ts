@@ -1,10 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    // Static export for Docker integration
-    output: 'export',
-    distDir: 'out',
-    trailingSlash: true,
-
+    ...(process.env.NODE_ENV === 'production' && {
+        output: 'export',
+        distDir: 'out',
+        trailingSlash: true,
+    }),
+    
     // Optimize for production
     images: {
         unoptimized: true // Required for static export
