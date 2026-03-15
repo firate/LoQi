@@ -5,7 +5,7 @@ using StackExchange.Redis;
 
 namespace LoQi.Infrastructure.Extensions;
 
-public static class DependecyInjectionsExtensions
+public static class DependencyInjectionExtensions
 {
    // <summary>
     /// Add Redis Stream services to dependency injection container
