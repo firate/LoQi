@@ -99,7 +99,7 @@ public class LogSearchDtoValidator : AbstractValidator<LogSearchDto>
 
     private static bool HaveReasonableDateRange(LogSearchDto dto)
     {
-        if (!string.IsNullOrWhiteSpace(dto.StartDate) || !string.IsNullOrWhiteSpace(dto.EndDate))
+        if (!string.IsNullOrWhiteSpace(dto.StartDate) && !string.IsNullOrWhiteSpace(dto.EndDate))
         {
             return true;
         }
