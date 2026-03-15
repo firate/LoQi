@@ -21,10 +21,9 @@ public class RawLogsConsumerService(
     : BackgroundService
 {
     private readonly RedisStreamConfig _config = config.Value;
-    private readonly string _consumerName = $"rawlogs-consumer-{Environment.MachineName}-{Guid.NewGuid():N}";
-
-    // this service makes log parsing, constructor injection is enough
-
+    
+    private readonly string _consumerName = $"rawlogs-consumer-{config.Value.ConsumerId}";
+    
     //  Batching configuration
     private const int MaxBatchSize = 100; // 100 mesaj toplandığında flush
     private const int FlushIntervalSeconds = 10; // 10 saniyede bir flush
