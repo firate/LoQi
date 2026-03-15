@@ -36,8 +36,12 @@ class LogService {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || `HTTP ${response.status}`);
+                const fieldErrors = errorData.errors?.map((e: { field: string; message: string }) =>
+                    `${e.field}: ${e.message}`
+                ).join('\n');
+                throw new Error(fieldErrors || errorData.error || `HTTP ${response.status}`);
             }
+
 
             return await response.json();
         } catch (error) {

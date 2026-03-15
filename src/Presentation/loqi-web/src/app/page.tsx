@@ -1,10 +1,12 @@
-import { Suspense } from 'react';
-import HomeContent from './HomeContent';
+"use client";
+import dynamic from 'next/dynamic';
+
+const HomeContent = dynamic(() => import('./HomeContent'), { ssr: false });
 
 export default function Home() {
     return (
-        <Suspense fallback={<div className="flex justify-center items-center h-screen">Loading...</div>}>
+        <div >
             <HomeContent />
-        </Suspense>
+        </div>
     );
 }

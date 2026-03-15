@@ -6,7 +6,7 @@ import LogDetailSection from '../components/LogDetailSection';
 import Logo from '../components/Logo';
 
 export default function HomeContent() {
-    const [activeTab, setActiveTab] = useState<'live' | 'search'>('live');
+    const [activeTab, setActiveTab] = useState<'live' | 'search'>('search');
     const searchParams = useSearchParams();
     const router = useRouter();
     const logId = searchParams.get('logId');

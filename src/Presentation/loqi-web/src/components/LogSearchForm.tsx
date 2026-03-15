@@ -8,10 +8,20 @@ interface LogSearchFormProps {
 }
 
 export default function LogSearchForm({onSearch, loading}: LogSearchFormProps) {
+
+    const getDefaultDates = () => {
+        const end = new Date();
+        const start = new Date();
+        start.setHours(start.getHours() - 1);
+        return {
+            startDate: start.toISOString().slice(0, 16),
+            endDate: end.toISOString().slice(0, 16),
+        };
+    };
+
     const [formData, setFormData] = useState<Partial<LogSearchDto>>({
         searchText: '',
-        startDate: '',
-        endDate: '',
+        ...getDefaultDates(),
         levelId: undefined,
         source: '',
         page: 1,
@@ -48,6 +58,15 @@ export default function LogSearchForm({onSearch, loading}: LogSearchFormProps) {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
+        // const hasAnyCriteria = formData.searchText || formData.startDate ||
+        //     formData.endDate || formData.levelId !== undefined ||
+        //     formData.source;
+        //
+        // if (!hasAnyCriteria) {
+        //     alert('En az bir arama kriteri girmelisiniz.');
+        //     return;
+        // }
+
         const searchParams: LogSearchDto = {
             searchText: formData.searchText || undefined,
             startDate: formData.startDate || undefined,
@@ -82,8 +101,7 @@ export default function LogSearchForm({onSearch, loading}: LogSearchFormProps) {
     const clearForm = () => {
         setFormData({
             searchText: '',
-            startDate: '',
-            endDate: '',
+            ...getDefaultDates(),
             levelId: undefined,
             source: '',
             page: 1,
@@ -93,14 +111,18 @@ export default function LogSearchForm({onSearch, loading}: LogSearchFormProps) {
         });
     };
 
+
     // Show loading state for metadata
     if (metadataLoading) {
         return (
             <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
                 <div className="flex items-center justify-center py-8">
-                    <svg className="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <svg className="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none"
+                         viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor"
+                                strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                     <span className="ml-2 text-gray-600">Loading search options...</span>
                 </div>
