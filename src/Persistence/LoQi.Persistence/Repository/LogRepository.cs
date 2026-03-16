@@ -45,7 +45,7 @@ public class LogRepository : ILogRepository
         var message = logEntry.Message;
         var source = logEntry.Source;
         var redisStreamId = logEntry.RedisStreamId;
-        
+
         const string sqlInsert = """
                                  insert into logs (unique_id, correlation_id, timestamp, redis_stream_id,  level, message, source)
                                  values (@uniqueId, @correlationId, @timestamp, @redisStreamId,  @level, @message, @source)
@@ -183,7 +183,7 @@ public class LogRepository : ILogRepository
 
         var rawLogs = (await rawDataTask).ToList();
 
-        if (rawLogs is null || rawLogs?.Count <= 0)
+        if (rawLogs.Count <= 0)
         {
             return PaginatedData<LogEntry>.Empty();
         }

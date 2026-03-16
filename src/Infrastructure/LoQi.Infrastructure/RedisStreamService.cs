@@ -282,8 +282,10 @@ public class RedisStreamService(
     /// </summary>
     public async Task<long> DeleteMessagesAsync(params string[] messageIds)
     {
-        if (messageIds == null || messageIds.Length == 0)
+        if (messageIds.Length == 0)
+        {
             return 0;
+        }
 
         try
         {
